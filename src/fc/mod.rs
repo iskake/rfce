@@ -1,21 +1,21 @@
+use inst::{AddrMode, Inst};
+
 use crate::fc::cpu::*;
 
 pub mod cpu;
+pub mod mem;
 
 pub fn tester() {
-    let mut cpu = CPU {
-        reg: Registers::new(),
-        mem: [0; 0x10000],
-    };
+    let mut cpu = CPU::new();
 
-    println!("{}", cpu.reg.a);
+    cpu.print_state();
     cpu.reg.a = 2;
-    println!("{}", cpu.reg.a);
+    cpu.print_state();
 
     let inst: Inst = Inst::LDA;
     match inst {
         Inst::LDA => cpu.lda(AddrMode::Imm),
         _ => panic!("AAA!!!!"),
     }
-    println!("{}", cpu.reg.a);
+    cpu.print_state();
 }

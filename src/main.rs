@@ -1,8 +1,9 @@
 use crate::fc::tester;
 
 pub mod fc;
+pub mod bits;
 
 fn main() {
-    println!("Hello, world!");
+    println!("Running the cpu tester!");
     tester();
 }
