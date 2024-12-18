@@ -73,7 +73,7 @@ impl Registers {
 
 pub struct CPU {
     reg: Registers,
-    pub mem: FCMem, // TODO?: move this somewhere else and have a reference?
+    pub mem: MemMap, // TODO?: move this somewhere else and have a reference?
     cycles: u64,
 }
 
@@ -81,7 +81,7 @@ impl CPU {
     pub fn new() -> CPU {
         CPU {
             reg: Registers::new(),
-            mem: FCMem::empty(),
+            mem: MemMap::empty(),
             cycles: 0,
         }
     }

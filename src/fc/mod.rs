@@ -1,4 +1,4 @@
-use mem::FCMem;
+use mem::MemMap;
 
 use crate::fc::cpu::*;
 
@@ -17,7 +17,7 @@ impl FC {
 
     pub fn from_file(filename: &str) -> FC {
         let mut cpu = CPU::new();
-        cpu.mem = FCMem::from_file(filename)
+        cpu.mem = MemMap::from_file(filename)
             .expect(&format!("File not found: {filename}"));
         FC { cpu }
     }
