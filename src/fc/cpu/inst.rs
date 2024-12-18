@@ -199,7 +199,9 @@ fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
         Acc => {
             let a = cpu.reg.a;
             cpu.reg.p.c = a.test_bit(7);    // TODO: is this _really_ just in the case of A? check.
-            (a << 1) | cpu.reg.p.c as u8
+            let new_val = (a << 1) | cpu.reg.p.c as u8;
+            cpu.reg.a = new_val;
+            new_val
         },
         ZP(ir) => {
             let val = cpu.zp_read_cycle(ir);  // +2 cycles
