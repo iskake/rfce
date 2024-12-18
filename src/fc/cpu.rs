@@ -55,6 +55,11 @@ impl CPU {
         self.cycles += 1;
     }
 
+    pub fn read_addr_cycle(&mut self, addr: u16) -> u8 {
+        self.cycle();
+        self.mem.read(addr)
+    }
+
     pub fn pc_read(&mut self) -> u8 {
         self.mem.read(self.reg.pc)
     }
@@ -87,23 +92,52 @@ impl CPU {
         val
     }
 
-    pub fn abs_read(&mut self, ir: IndexRegister) -> u8 {
-        let l = self.pc_read();
-        let m = self.pc_read();
+    pub fn abs_read_inc(&mut self, ir: IndexRegister) -> u8 {
+        let l = self.pc_read_inc(); // +1 cycle
+        let m = self.pc_read_inc(); // +1 cycle
+        let addr = as_address(l, m);
         let delta = match ir {
             IndexRegister::None => 0,
             IndexRegister::X => self.reg.x,
             IndexRegister::Y => self.reg.y,
-        } as u16; // !!!TODO!!! check the page crossing thing pls
-        self.mem.read(as_address(l,m) + delta)
+        } as u16;
+        //if ... { self.cycle(); } // !!!TODO!!! check the page crossing thing pls!!!
+        self.mem.read(addr + delta)
     }
+
+    pub fn get_indirect(&mut self, addr: u16) -> u16 {
+        let l = self.read_addr_cycle(addr);     // +1 cycle
+        let m = self.read_addr_cycle(addr+1);   // +1 cycle
+        as_address(l, m)
+    }
+
+    pub fn ind_read_inc(&mut self, ir: IndexRegister) -> u8 {
+        // +1 cycle to start
+        let pcval = self.pc_read_inc(); // +1 cycle
+        match ir {
+            IndexRegister::X => {
+                let ptr = as_address(pcval + self.reg.x, 0x00); // ?+2?
+                let addr = self.get_indirect(ptr as u16);     // +2 cycles
+                self.mem.read(addr)
+            },
+            IndexRegister::Y => {
+                // self.mem.read(...)
+                panic!("oh no!!!!")
+            }, // TODO!!! page crossing again (but only for y?)
+            IndexRegister::None => unreachable!()
+        }
+    }
+
+    // pub fn run_inst(&mut self, inst: Inst)
 
     // TODO? might be a good idea to move this somewhere else?
     pub fn lda(&mut self, am: AddrMode) -> () {
         // todo: everything lol
         let val = match am {
-            AddrMode::Imm => self.pc_read_inc(),
-            AddrMode::ZP(ir) => self.zp_read_inc(ir),
+            AddrMode::Imm => self.pc_read_inc(), // +1 cycle
+            AddrMode::ZP(ir) => self.zp_read_inc(ir),   // +2 / +3 cycles
+            AddrMode::Abs(ir) => self.abs_read_inc(ir), // +3 (+1) cycles
+            AddrMode::Ind(ir) => self.ind_read_inc(ir), // +5 (-1??) cycles
             _ => unreachable!(),
         };
         let z = val == 0;
