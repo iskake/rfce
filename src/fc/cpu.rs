@@ -8,7 +8,7 @@ pub mod inst;
 // TODO: change visibility of various enums (from pub to private)??
 
 #[derive(Clone, Copy)]
-struct ProcFlags {
+pub struct ProcFlags {
     c: bool,
     z: bool,
     i: bool,
@@ -335,6 +335,16 @@ impl CPU {
     }
 
     pub fn fetch_and_run(&mut self) -> () {
+        let cycles_before = self.cycles;
+        let inst = self.fetch_next_inst();  // 1 cycle
+        self.run_inst(inst);                      // n cycles
+        let cycles_after = self.cycles;
+        if cycles_after - cycles_before == 1 {
+            self.cycle();
+        }
+    }
+
+    pub fn fetch_and_run_dbg(&mut self) -> () {
         let cycles_before = self.cycles;
         let (op, inst) = self.fetch_next_op_inst();  // 1 cycle
         self.run_inst(inst);                                   // n cycles
