@@ -1,21 +1,52 @@
-use inst::{AddrMode, Inst};
+use std::fmt::Debug;
+
+use mem::{FCMem, Memory};
 
 use crate::fc::cpu::*;
 
 pub mod cpu;
 pub mod mem;
 
-pub fn tester() {
-    let mut cpu = CPU::new();
+pub struct FC {
+    cpu: CPU
+}
 
-    cpu.print_state();
-    cpu.reg.a = 2;
-    cpu.print_state();
-
-    let inst: Inst = Inst::LDA;
-    match inst {
-        Inst::LDA => cpu.lda(AddrMode::Imm),
-        _ => panic!("AAA!!!!"),
+impl FC {
+    fn new() -> FC {
+        FC { cpu: CPU::new() }
     }
-    cpu.print_state();
+
+    fn from_file(filename: &str) -> FC {
+        let mut cpu = CPU::new();
+        cpu.mem = FCMem::from_file(filename)
+            .expect(&format!("File not found: {filename}"));
+        FC { cpu }
+    }
+
+    fn step(&mut self) -> () {
+        self.cpu.fetch_and_run();
+    }
+}
+
+pub fn tester() {
+    let mut fc = FC::from_file("test.bin");
+
+    // fc.cpu.mem.write(0x8000, 0xa9);    // lda #$99
+    // fc.cpu.mem.write(0x8001, 0x99);
+    fc.step();
+    fc.cpu.print_state();
+    // fc.cpu.mem.write(0x8002, 0xea);    // nop
+    fc.step();
+    fc.cpu.print_state();
+    // fc.cpu.mem.write(0x8003, 0x85);    // sta $23
+    // fc.cpu.mem.write(0x8004, 0x23);
+    fc.step();
+    fc.cpu.print_state();
+    println!("$0023: {:02x}", fc.cpu.mem.read(0x0023));
+    // fc.cpu.mem.write(0x8005, 0x95);    // sta $24,x
+    // fc.cpu.mem.write(0x8006, 0x24);
+    fc.step();
+    fc.cpu.print_state();
+    println!("$0024: {:02x}", fc.cpu.mem.read(0x0024));
+    fc.step();
 }
