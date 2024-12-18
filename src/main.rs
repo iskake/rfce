@@ -1,9 +1,10 @@
-use crate::fc::tester;
+use crate::fc::dbg::Debugger;
 
 pub mod fc;
 pub mod bits;
 
 fn main() {
     println!("Running the cpu tester!");
-    tester();
+    let mut debugger = Debugger::new();
+    debugger.run();
 }

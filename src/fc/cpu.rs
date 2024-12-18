@@ -5,6 +5,11 @@ use crate::fc::mem::*;
 
 pub mod inst;
 
+pub const CPU_FREQ: u64 = 1_789_773;
+
+pub const MASTER_FREQ: u64      = 21_477_272;
+pub const MASTER_FREQ_60HZ: u64 = 21_441_960;
+
 // TODO: change visibility of various enums (from pub to private)??
 
 #[derive(Clone, Copy)]
@@ -88,6 +93,7 @@ impl CPU {
         println!("  p: {:08b}", p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
+        println!("-> {:?}", self.fetch_next_inst_nocycle())
     }
 
     /// "Cycle" the cpu.
@@ -123,7 +129,7 @@ impl CPU {
     /// Read the value pointe to by the pc without any cycles.
     /// 
     /// Cycles: `0`
-    pub fn pc_read_nocycle(&mut self) -> u8 {
+    pub fn pc_read_nocycle(&self) -> u8 {
         self.mem.read(self.reg.pc)
     }
     
@@ -149,6 +155,19 @@ impl CPU {
         let val = self.pc_read();   // +1 cycle
         self.pc_inc();
         val
+    }
+    
+    /// Add an offset to the value of the pc
+    /// 
+    /// Cycles: `1` (`+1` if to a new page)
+    fn pc_offset_cycle(&mut self, offset: i8) -> () {
+        let old_pc = self.reg.pc;
+        let new_pc = old_pc.wrapping_add_signed(offset.into());
+        if (new_pc & 0xff00 != old_pc & 0xff00) {
+            self.cycle();   // +1 cycle
+        }
+        self.reg.pc = new_pc;
+        self.cycle();       // +1 cycle
     }
 
 
@@ -323,6 +342,10 @@ impl CPU {
 
     fn fetch_next_inst(&mut self) -> Inst {
         INST_TABLE[self.fetch_next_op() as usize] // 1 cycle
+    }
+
+    fn fetch_next_inst_nocycle(&self) -> Inst {
+        INST_TABLE[self.pc_read_nocycle() as usize]
     }
 
     fn fetch_next_op_inst(&mut self) -> (u8, Inst) {

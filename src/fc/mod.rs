@@ -1,9 +1,10 @@
-use mem::{FCMem, Memory};
+use mem::FCMem;
 
 use crate::fc::cpu::*;
 
 pub mod cpu;
 pub mod mem;
+pub mod dbg;
 
 pub struct FC {
     cpu: CPU
@@ -33,6 +34,7 @@ impl FC {
 pub fn tester() {
     let mut fc = FC::from_file("test.bin");
 
+    /*
     // fc.cpu.mem.write(0x8000, 0xa9);    // lda #$99
     // fc.cpu.mem.write(0x8001, 0x99);
     fc.step_dbg();
@@ -51,4 +53,10 @@ pub fn tester() {
     fc.cpu.print_state();
     println!("$0024: {:02x}", fc.cpu.mem.read(0x0024));
     fc.step_dbg();
+    */
+    for i in 1..=51 {
+        print!("!!!iter: {}", i);
+        fc.cpu.print_state();
+        fc.step_dbg();
+    }
 }
