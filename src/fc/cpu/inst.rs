@@ -1,3 +1,5 @@
+use std::ops::{Shl,Shr};
+
 use crate::bits::Bitwise;
 
 use super::CPU;
@@ -88,14 +90,14 @@ impl Inst {
             Inst::NOP(_am) => (),
             Inst::ADC(_am) => todo!("instruction ADC"),
             Inst::AND(_am) => todo!("instruction AND"),
-            Inst::ASL(_am) => todo!("instruction ASL"),
-            Inst::BCC(_am) => todo!("instruction BCC"),
-            Inst::BCS(_am) => todo!("instruction BCS"),
-            Inst::BEQ(_am) => todo!("instruction BEQ"),
+            Inst::ASL(am) => rot(cpu, am, false, true),
+            Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
+            Inst::BCS(_) => branch(cpu,  cpu.reg.p.c),
+            Inst::BEQ(_) => branch(cpu,  cpu.reg.p.z),
             Inst::BIT(_am) => todo!("instruction BIT"),
-            Inst::BMI(_am) => todo!("instruction BMI"),
-            Inst::BNE(_am) => todo!("instruction BNE"),
-            Inst::BPL(_am) => todo!("instruction BPL"),
+            Inst::BMI(_) => branch(cpu,  cpu.reg.p.n),
+            Inst::BNE(_) => branch(cpu, !cpu.reg.p.z),
+            Inst::BPL(_) => branch(cpu, !cpu.reg.p.n),
             Inst::BRK(_am) => todo!("instruction BRK"),
             Inst::BVC(_am) => todo!("instruction BVC"),
             Inst::BVS(_am) => todo!("instruction BVS"),
@@ -118,14 +120,14 @@ impl Inst {
             Inst::LDA(am) => ld(cpu, am, InstReg::A),
             Inst::LDX(am) => ld(cpu, am, InstReg::X),
             Inst::LDY(am) => ld(cpu, am, InstReg::Y),
-            Inst::LSR(_am) => todo!("instruction LSR"),
+            Inst::LSR(am) => rot(cpu, am, false, false),
             Inst::ORA(_am) => todo!("instruction ORA"),
             Inst::PHA(_am) => todo!("instruction PHA"),
             Inst::PHP(_am) => todo!("instruction PHP"),
             Inst::PLA(_am) => todo!("instruction PLA"),
             Inst::PLP(_am) => todo!("instruction PLP"),
-            Inst::ROL(am) => rol(cpu, am),
-            Inst::ROR(_am) => todo!("instruction ROR"),
+            Inst::ROL(am) => rot(cpu, am, true, true),
+            Inst::ROR(am) => rot(cpu, am, true, false),
             Inst::RTI(_am) => todo!("instruction RTI"),
             Inst::RTS(_am) => todo!("instruction RTS"),
             Inst::SBC(_am) => todo!("instruction SBC"),
@@ -157,9 +159,9 @@ enum InstReg {
 fn ld(cpu: &mut CPU, am: AddrMode, ir: InstReg) -> () {
     let val = match am {
         AddrMode::Imm => cpu.pc_read_inc(), // +1 cycle
-        AddrMode::ZP(ir) => cpu.zp_read_inc(ir),   // +2(+1) cycles
-        AddrMode::Abs(ir) => cpu.abs_read_inc(ir), // +3(+1) cycles
-        AddrMode::Ind(ir) => cpu.ind_read_inc(ir), // +5(-1??) cycles
+        AddrMode::ZP(i) => cpu.zp_read_inc(i),   // +2(+1) cycles
+        AddrMode::Abs(i) => cpu.abs_read_inc(i), // +3(+1) cycles
+        AddrMode::Ind(i) => cpu.ind_read_inc(i), // +5(-1??) cycles
         _ => unreachable!(),
     };
     let z = val == 0;
@@ -189,18 +191,21 @@ fn st(cpu: &mut CPU, am: AddrMode, ir: InstReg) -> () {
     }
 }
 
-fn rol(cpu: &mut CPU, am: AddrMode) -> () {
+fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
+    let shift_fn: fn(u8) -> u8 = if left {|x| x << 1} else {|x| x >> 1};
+    let pad_amount = if left {0} else {7};
+
     let val = match am {
         Acc => {
             let a = cpu.reg.a;
-            cpu.reg.p.c = a.test_bit(7);
+            cpu.reg.p.c = a.test_bit(7);    // TODO: is this _really_ just in the case of A? check.
             (a << 1) | cpu.reg.p.c as u8
         },
         ZP(ir) => {
             let val = cpu.zp_read_cycle(ir);  // +2 cycles
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
-            let new_val = (val << 1) | cpu.reg.p.c as u8;
+            let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
             cpu.zp_write_inc(new_val, ir);        // +2(+1) cycles
             new_val
         },
@@ -208,7 +213,7 @@ fn rol(cpu: &mut CPU, am: AddrMode) -> () {
             let val = cpu.abs_read_cycle(ir);  // +2 cycles
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
-            let new_val = (val << 1) | cpu.reg.p.c as u8;
+            let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
             cpu.abs_write_inc(new_val, ir);        // +3(+1) cycles
             new_val
             // = 5(+1)
@@ -218,6 +223,13 @@ fn rol(cpu: &mut CPU, am: AddrMode) -> () {
     cpu.reg.p.n = val.test_bit(7);
 }
 
-fn ill(cpu: &mut CPU, opcode: u8) -> () {
+fn branch(cpu: &mut CPU, condition: bool) -> () {
+    let offset = cpu.pc_read_inc() as i8;   // +1 cycle
+    if condition {
+        cpu.pc_offset_cycle(offset);            // +1(+1) cycle(s)
+    }
+}
+
+fn ill(_: &mut CPU, opcode: u8) -> () {
     panic!("ILLEGAL INSTRUCTION ${:02x}", opcode);
 }
