@@ -31,6 +31,10 @@ impl FC {
         self.cpu = cpu;
     }
 
+    fn init(&mut self) -> () {
+        self.cpu.init();
+    }
+
     pub fn step(&mut self) -> () {
         self.cpu.fetch_and_run();
     }

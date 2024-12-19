@@ -17,6 +17,7 @@ impl Debugger {
 
     pub fn load_file(&mut self, filename: &str) -> () {
         self.fc.load_rom(filename);
+        self.fc.init();
     }
 
     pub fn run(&mut self) -> () {

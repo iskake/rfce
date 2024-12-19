@@ -71,7 +71,7 @@ impl Registers {
             y: 0x00,
             p: 0x00.into(),
             sp: 0x00,
-            pc: 0x8000,
+            pc: 0x0000,
         }
     }
 }
@@ -102,6 +102,16 @@ impl CPU {
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
         println!("-> {:?}", self.fetch_next_inst_nocycle())
+    }
+
+    pub fn init(&mut self) -> () {
+        // TODO: all the other initialization things.
+
+        // TODO: does this take any cycles?
+        let l = self.read_addr_nocycle(RESET_VECTOR);
+        let m = self.read_addr_nocycle(RESET_VECTOR + 1);
+        let addr = as_address(l, m);
+        self.reg.pc = addr;
     }
 
     /// "Cycle" the cpu.
