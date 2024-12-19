@@ -107,11 +107,11 @@ impl Inst {
             Inst::CPX(am) => cmp(cpu, am, InstrReg::X),
             Inst::CPY(am) => cmp(cpu, am, InstrReg::Y),
             Inst::DEC(am) => inc(cpu, am, true),
-            Inst::DEX(_) => x_fn(cpu, |x| x - 1),
-            Inst::DEY(_) => y_fn(cpu, |x| x - 1),
+            Inst::DEX(_) => set_x(cpu,  cpu.reg.x - 1),
+            Inst::DEY(_) => set_y(cpu,  cpu.reg.y - 1),
             Inst::INC(am) => inc(cpu, am, false),
-            Inst::INX(_) => x_fn(cpu, |x| x + 1),
-            Inst::INY(_) => y_fn(cpu, |x| x + 1),
+            Inst::INX(_) => set_x(cpu, cpu.reg.x + 1),
+            Inst::INY(_) => set_y(cpu, cpu.reg.y + 1),
             Inst::JMP(_am) => todo!("instruction JMP"),
             Inst::JSR(_am) => todo!("instruction JSR"),
             Inst::LDA(am) => ld(cpu, am, InstrReg::A),
@@ -133,12 +133,12 @@ impl Inst {
             Inst::STA(am) => st(cpu, am, InstrReg::A),
             Inst::STX(am) => st(cpu, am, InstrReg::X),
             Inst::STY(am) => st(cpu, am, InstrReg::Y),
-            Inst::TAX(_am) => todo!("instruction TAX"),
-            Inst::TAY(_am) => todo!("instruction TAY"),
-            Inst::TSX(_am) => todo!("instruction TSX"),
-            Inst::TXA(_am) => todo!("instruction TXA"),
-            Inst::TXS(_am) => todo!("instruction TXS"),
-            Inst::TYA(_am) => todo!("instruction TYA"),
+            Inst::TAX(_) => set_x(cpu, cpu.reg.a),
+            Inst::TAY(_) => set_y(cpu, cpu.reg.a),
+            Inst::TSX(_) => cpu.reg.x = cpu.reg.sp,
+            Inst::TXA(_) => set_a(cpu, cpu.reg.x),
+            Inst::TXS(_) => set_a(cpu, cpu.reg.y),
+            Inst::TYA(_) => cpu.reg.a = cpu.reg.sp,
             // Extra:
             Inst::STP(_am) => todo!("instruction STP"),
             Inst::ILL(op) => ill(cpu, op),
@@ -152,14 +152,20 @@ fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
 
-fn x_fn(cpu: &mut CPU, f: fn(u8) -> u8) {
-    cpu.reg.x = f(cpu.reg.x);
+fn set_a(cpu: &mut CPU, f: u8) {
+    cpu.reg.a = f;
+    cpu.reg.p.z = cpu.reg.a == 0;
+    cpu.reg.p.n = cpu.reg.a.test_bit(7)
+}
+
+fn set_x(cpu: &mut CPU, f: u8) {
+    cpu.reg.x = f;
     cpu.reg.p.z = cpu.reg.x == 0;
     cpu.reg.p.n = cpu.reg.x.test_bit(7)
 }
 
-fn y_fn(cpu: &mut CPU, f: fn(u8) -> u8) {
-    cpu.reg.y = f(cpu.reg.y);
+fn set_y(cpu: &mut CPU, f: u8) {
+    cpu.reg.y = f;
     cpu.reg.p.z = cpu.reg.y == 0;
     cpu.reg.p.n = cpu.reg.y.test_bit(7)
 }
