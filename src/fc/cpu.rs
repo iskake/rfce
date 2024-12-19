@@ -303,7 +303,7 @@ impl CPU {
     /// - Imm: `1`
     /// - Zp : `2`
     /// - Abs: `2`
-    pub fn read_operand_cycle(&mut self, am: AddrMode) -> u8 {
+    pub fn operand_read_cycle(&mut self, am: AddrMode) -> u8 {
         match am {
             // TODO: shouldn't it really be the write func that has the fewer cycle things?
             AddrMode::Acc => self.reg.a,
@@ -324,7 +324,7 @@ impl CPU {
     /// - Zp : `2`(`+1` for x/y page crossing)
     /// - Abs: `3`(`+1` for x/y page crossing)
     /// - Ind: `5`("`-1`"" y NOT page crossing)
-    pub fn read_operand_inc(&mut self, am: AddrMode) -> u8 {
+    pub fn operand_read_inc(&mut self, am: AddrMode) -> u8 {
         match am {
             AddrMode::Acc => self.reg.a,
             AddrMode::Imm => self.pc_read_inc(),        // +1
@@ -342,7 +342,7 @@ impl CPU {
     /// - Zp : `2`(`+1` for x/y)
     /// - Abs: `3`(`+1` for x/y)
     /// - Ind: `5` for both x/y
-    pub fn write_operand_inc(&mut self, am: AddrMode, val: u8) {
+    pub fn operand_write_inc(&mut self, am: AddrMode, val: u8) {
         match am {
             AddrMode::ZP(ir) => self.zp_write_inc(val, ir), // +2(+1 x/y)
             AddrMode::Abs(ir) => self.abs_write_inc(val, ir), // +3

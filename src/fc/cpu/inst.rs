@@ -147,7 +147,7 @@ impl Inst {
 }
 
 fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
-    cpu.reg.a = f(cpu.reg.a, cpu.read_operand_inc(am));
+    cpu.reg.a = f(cpu.reg.a, cpu.operand_read_inc(am));
     cpu.reg.p.z = cpu.reg.a == 0;
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
@@ -166,7 +166,7 @@ fn y_fn(cpu: &mut CPU, f: fn(u8) -> u8) {
 
 fn bit(cpu: &mut CPU, am: AddrMode) -> () {
     let a = cpu.reg.a;
-    let m = cpu.read_operand_inc(am);
+    let m = cpu.operand_read_inc(am);
     let result = a & m;
 
     cpu.reg.p.z = result == 0;
@@ -175,11 +175,11 @@ fn bit(cpu: &mut CPU, am: AddrMode) -> () {
 }
 
 fn inc(cpu: &mut CPU, am: AddrMode, decrement: bool) -> () {
-    let m = cpu.read_operand_cycle(am);
+    let m = cpu.operand_read_cycle(am);
     let result = if decrement { m + 1 } else { m - 1 };
     cpu.reg.p.z = result == 0;
     cpu.reg.p.n = result.test_bit(7);
-    cpu.write_operand_inc(am, result);
+    cpu.operand_write_inc(am, result);
 }
 
 enum InstrReg {
@@ -207,7 +207,7 @@ impl InstrReg {
 }
 
 fn ld(cpu: &mut CPU, am: AddrMode, inst_reg: InstrReg) -> () {
-    let val = cpu.read_operand_inc(am);
+    let val = cpu.operand_read_inc(am);
     let z = val == 0;
     let n = val.test_bit(7);
 
@@ -219,12 +219,12 @@ fn ld(cpu: &mut CPU, am: AddrMode, inst_reg: InstrReg) -> () {
 fn st(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
     let val = instr_reg.get(cpu);
 
-    cpu.write_operand_inc(am, val);
+    cpu.operand_write_inc(am, val);
 }
 
 fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
     let a = cpu.reg.a as u16;
-    let m = (cpu.read_operand_inc(am) ^ (if sbc { 0xff } else { 0 })) as u16;
+    let m = (cpu.operand_read_inc(am) ^ (if sbc { 0xff } else { 0 })) as u16;
     let c = cpu.reg.p.c as u16;
 
     let result = a + m + c;
@@ -238,7 +238,7 @@ fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
 
 fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
     let r = instr_reg.get(cpu);
-    let m = cpu.read_operand_inc(am);
+    let m = cpu.operand_read_inc(am);
     let result = r - m;
 
     cpu.reg.p.c = r >= m;
