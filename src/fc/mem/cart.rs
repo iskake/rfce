@@ -160,91 +160,95 @@ impl NESFileHeader {
     }
 
     /// Get the size of PRG-ROM in bytes
-    pub fn prg_rom_size(&self) -> u64 {
+    pub fn prg_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
-            let val = self.prg_rom_size_lsb as u64;
+            let val = self.prg_rom_size_lsb as usize;
             val * 0x4000
         } else {
-            if (self.flags9 as u64 & 0xf) == 0xf {
+            if (self.flags9 & 0xf) == 0xf {
                 // Exponent-multiplier notation
-                let multiplier = (self.chr_rom_size_lsb & 0b11) as u64;
-                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as u64;
+                let multiplier = (self.chr_rom_size_lsb & 0b11) as usize;
+                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
                 // TODO: check for overflow?
                 (1 << exponent) * (multiplier * 2 + 1)
             } else {
-                let val = ((self.flags9 as u64 & 0xf) << 4) | self.prg_rom_size_lsb as u64;
+                let val = ((self.flags9 as usize & 0xf) << 4) | self.prg_rom_size_lsb as usize;
                 val * 0x4000
             }
         }
     }
 
     /// Get the size of CHR-ROM in bytes
-    pub fn chr_rom_size(&self) -> u64 {
+    pub fn chr_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
-            let val = self.chr_rom_size_lsb as u64;
+            let val = self.chr_rom_size_lsb as usize;
             val
         } else {
-            if (self.flags9 as u64 & 0xf0) == 0xf0 {
+            if (self.flags9 & 0xf0) == 0xf0 {
                 // Exponent-multiplier notation
-                let multiplier = (self.chr_rom_size_lsb & 0b11) as u64;
-                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as u64;
+                let multiplier = (self.chr_rom_size_lsb & 0b11) as usize;
+                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
                 // TODO: check for overflow?
                 (1 << exponent) * (multiplier * 2 + 1)
             } else {
                 // Normal
-                let val = ((self.flags9 as u64 & 0xf0) << 4) | self.chr_rom_size_lsb as u64;
+                let val = ((self.flags9 as usize & 0xf0) << 4) | self.chr_rom_size_lsb as usize;
                 val * 0x2000
             }
         }
     }
 
-    /// Get the PRG-RAM (volatile) shift count (NES2.0 only)
-    ///
-    /// - "If the shift count is zero, there is no CHR-(NV)RAM."
-    /// - "If the shift count is non-zero, the actual size is
-    ///   - "64 << shift count" bytes, i.e. 8192 bytes for a shift count of 7."
-    pub fn prg_ram_shift_count(&self) -> u8 {
+    /// Get the PRG-RAM (volatile) size in bytes (NES2.0 only)
+    pub fn prg_ram_size(&self) -> usize {
         if self.is_nes20_format() {
-            self.flags10 & 0x0f
+            let shift_count = self.flags10 & 0x0f;
+            if shift_count == 0 {
+                0
+            } else {
+                64 << shift_count
+            }
         } else {
             0
         }
     }
 
-    /// Get the PRG-NVRAM/EEPROM (non-volatile) shift count (NES2.0 only)
-    ///
-    /// - "If the shift count is zero, there is no CHR-(NV)RAM."
-    /// - "If the shift count is non-zero, the actual size is
-    ///   - "64 << shift count" bytes, i.e. 8192 bytes for a shift count of 7."
-    pub fn prg_nvram_eeprom_shift_count(&self) -> u8 {
+    /// Get the PRG-NVRAM/EEPROM (non-volatile) size in bytes (NES2.0 only)
+    pub fn prg_nvram_eeprom_size(&self) -> usize {
         if self.is_nes20_format() {
-            (self.flags10 & 0xf0) >> 4
+            let shift_count = (self.flags10 & 0xf0) >> 4;
+            if shift_count == 0 {
+                0
+            } else {
+                64 << shift_count
+            }
         } else {
             0
         }
     }
 
-    /// Get the CHR-RAM (volatile) shift count (NES2.0 only)
-    ///
-    /// - "If the shift count is zero, there is no CHR-(NV)RAM."
-    /// - "If the shift count is non-zero, the actual size is
-    ///   - "64 << shift count" bytes, i.e. 8192 bytes for a shift count of 7."
-    pub fn chr_ram_shift_count(&self) -> u8 {
+    /// Get the CHR-RAM (volatile) size in bytes (NES2.0 only)
+    pub fn chr_ram_size(&self) -> usize {
         if self.is_nes20_format() {
-            self.flags11 & 0x0f
+            let shift_count = self.flags11 & 0x0f;
+            if shift_count == 0 {
+                0
+            } else {
+                64 << shift_count
+            }
         } else {
             0
         }
     }
 
-    /// Get the CHR-NVRAM (non-volatile) shift count (NES2.0 only)
-    ///
-    /// - "If the shift count is zero, there is no CHR-(NV)RAM."
-    /// - "If the shift count is non-zero, the actual size is
-    ///   - "64 << shift count" bytes, i.e. 8192 bytes for a shift count of 7."
-    pub fn chr_nvram_shift_count(&self) -> u8 {
+    /// Get the CHR-NVRAM (non-volatile) size in bytes (NES2.0 only)
+    pub fn chr_nvram_size(&self) -> usize {
         if self.is_nes20_format() {
-            (self.flags11 & 0xf0) >> 4
+            let shift_count = (self.flags11 & 0xf0) >> 4;
+            if shift_count == 0 {
+                0
+            } else {
+                64 << shift_count
+            }
         } else {
             0
         }

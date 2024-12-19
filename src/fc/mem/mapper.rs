@@ -1,9 +1,82 @@
-#[derive(Debug)]
+use crate::fc::NESFile;
+
+use super::Memory;
+
+#[derive(PartialEq, Debug)]
 pub enum MapperType {
     NROM,
     UNKNOWN(u16),
 }
 
 pub struct NROMMapper {
+    prg_rom: Vec<u8>,
+    prg_ram: Vec<u8>,
+    chr_rom: Vec<u8>,
+    nrom256: bool,
+    nametable_v_mirror: bool,
+    // TODO?
+    // ..."PRG RAM: 2 or 4 KiB"
+    // ..."CHR capacity: 8KiB ROM"
+    // ...bus conflicts?
+}
 
+impl NROMMapper {
+    pub fn from_nesfile(nesfile: NESFile) -> NROMMapper {
+        assert!(nesfile.mapper_type() == MapperType::NROM);
+        let prg_rom_size = nesfile.header.prg_rom_size();
+        let chr_rom_size = nesfile.header.chr_rom_size();
+        let prg_ram_size = nesfile.header.prg_ram_size();
+        // TODO: chr ram?
+        let nametable_v_mirror = nesfile.header.nametable_layout();
+
+        if nesfile.header.trainer() {
+            todo!()
+        }
+
+        println!("NROM with:");
+        println!("  PRG-ROM SIZE: {}", prg_rom_size);
+        println!("  PRG-RAM SIZE: {}", prg_ram_size);
+        println!("  CHR-ROM SIZE: {}", chr_rom_size);
+        println!("  Nametable vert mirroring: {}", nametable_v_mirror);
+        println!();
+
+        let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
+        let prg_ram: Vec<u8> = vec![0; prg_ram_size];  // TODO
+        let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
+        let nrom256 = false; // TODO
+
+        NROMMapper { prg_rom, prg_ram, chr_rom, nrom256, nametable_v_mirror}
+    }
+}
+
+impl Memory for NROMMapper {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0x6000..=0x7fff => {
+                // TODO: handle mirroring/no ram
+                self.prg_ram[(addr - 0x6000) as usize]
+            },
+            0x8000..=0xbfff => {
+                self.prg_rom[(addr - 0x8000) as usize]
+            },
+            0xc000..=0xffff => {
+                if self.nrom256 {
+                    self.prg_rom[(addr - 0x8000) as usize]
+                } else {
+                    self.prg_rom[(addr - 0xc000) as usize]
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, addr: u16, val: u8) -> () {
+        match addr {
+            0x6000..=0x7fff => {
+                // TODO: handle mirroring/no ram
+                self.prg_ram[(addr - 0x6000) as usize] = val;
+            },
+            _ => (),
+        }
+    }
 }
