@@ -1,10 +1,8 @@
-use std::fs::File;
-use std::io;
-use std::io::prelude::*;
-
 use cart::NESFile;
 
 pub mod cart;
+
+const MAPPER_SPACE: usize = 0x10000 - 0x4020;
 
 pub trait Memory {
     fn read(&self, addr: u16) -> u8;
@@ -12,7 +10,7 @@ pub trait Memory {
 }
 
 // TODO: create a proper data types to handle generic memory for cartridges and all that good stuff
-type SimpleMapper = [u8; 0x10000 - 0x4020];
+type SimpleMapper = [u8; MAPPER_SPACE];
 
 impl Memory for SimpleMapper {
     fn read(&self, addr: u16) -> u8 {
@@ -60,7 +58,7 @@ impl MemMap {
     pub fn empty() -> MemMap {
         MemMap {
             ram: [0; 0x800],
-            mapper: [0; 0x10000 - 0x4020],
+            mapper: [0; MAPPER_SPACE],
         }
     }
 
@@ -68,9 +66,9 @@ impl MemMap {
         // TODO: fix this mess
         let buf = nesfile.data;
 
-        let mut data = [0; 0x10000 - 0x4020];
+        let mut data = [0; MAPPER_SPACE];
         for i in 0..buf.len() {
-            data[(0x8000 - 0x4020) + i] = buf[i];
+            data[i] = buf[i];
         }
         // let data: [u8; 0x8000] = buf.try_into()
         //     .unwrap_or_else(|v: Vec<u8>| panic!("Length of file is invalid: {} (expected {})", v.len(), 0x8000));

@@ -11,8 +11,12 @@ pub struct Debugger {
 
 impl Debugger {
     pub fn new() -> Debugger {
-        let fc = FC::from_file("smb.nes");
+        let fc = FC::new();
         Debugger { fc }
+    }
+
+    pub fn load_file(&mut self, filename: &str) -> () {
+        self.fc.load_rom(filename);
     }
 
     pub fn run(&mut self) -> () {
