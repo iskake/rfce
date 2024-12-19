@@ -168,26 +168,36 @@ enum InstrReg {
     Y,
 }
 
+impl InstrReg {
+    fn set(self, cpu: &mut CPU, val: u8) -> () {
+        match self {
+            InstrReg::A => cpu.reg.a = val,
+            InstrReg::X => cpu.reg.x = val,
+            InstrReg::Y => cpu.reg.y = val,
+        };
+    }
+
+    fn get(self, cpu: &CPU) -> u8 {
+        match self {
+            InstrReg::A => cpu.reg.a,
+            InstrReg::X => cpu.reg.x,
+            InstrReg::Y => cpu.reg.y,
+        }
+    }
+}
+
 fn ld(cpu: &mut CPU, am: AddrMode, inst_reg: InstrReg) -> () {
     let val = cpu.read_operand_inc(am);
     let z = val == 0;
     let n = val.test_bit(7);
 
-    match inst_reg {
-        InstrReg::A => cpu.reg.a = val,
-        InstrReg::X => cpu.reg.x = val,
-        InstrReg::Y => cpu.reg.y = val,
-    };
+    inst_reg.set(cpu, val);
     cpu.reg.p.z = z;
     cpu.reg.p.n = n;
 }
 
 fn st(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
-    let val = match instr_reg {
-        InstrReg::A => cpu.reg.a,
-        InstrReg::X => cpu.reg.x,
-        InstrReg::Y => cpu.reg.y,
-    };
+    let val = instr_reg.get(cpu);
 
     cpu.write_operand_inc(am, val);
 }
@@ -207,11 +217,7 @@ fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
 }
 
 fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
-    let r = match instr_reg {
-        InstrReg::A => cpu.reg.a,
-        InstrReg::X => cpu.reg.x,
-        InstrReg::Y => cpu.reg.y,
-    };
+    let r = instr_reg.get(cpu);
     let m = cpu.read_operand_inc(am);
     let result = r - m;
 
