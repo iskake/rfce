@@ -1,4 +1,5 @@
 use cart::NESFile;
+use mapper::NROMMapper;
 
 pub mod cart;
 mod mapper;
@@ -26,7 +27,7 @@ impl Memory for SimpleMapper {
 pub struct MemMap {
     ram: [u8; 0x800],
     // ...  // TODO: ppu, apu, ...
-    mapper: SimpleMapper, //dyn Memory, // TODO: mappers
+    mapper: Box<dyn Memory>,
 }
 
 impl Memory for MemMap {
@@ -59,24 +60,34 @@ impl MemMap {
     pub fn empty() -> MemMap {
         MemMap {
             ram: [0; 0x800],
-            mapper: [0; MAPPER_SPACE],
+            mapper: Box::new([0; MAPPER_SPACE]),
         }
     }
 
     pub fn from_nesfile(nesfile: NESFile) -> MemMap {
-        // TODO: fix this mess
         println!("{:?}", nesfile.mapper_type());
-        let buf = nesfile.data;
+        match nesfile.mapper_type() {
+            mapper::MapperType::NROM => {
+                let mapper = Box::new(NROMMapper::from_nesfile(nesfile));
+                MemMap { ram: [0; 0x800], mapper }
+            },
+            mapper::MapperType::UNKNOWN(i) => {
+                println!("WARNING: UNKNOWN MAPPER ({i})");
+                println!("as a fallback, RAM is used as a mapper (r/w)");
 
-        let mut data = [0; MAPPER_SPACE];
-        for i in 0..buf.len() {
-            data[i] = buf[i];
-        }
-        // let data: [u8; 0x8000] = buf.try_into()
-        //     .unwrap_or_else(|v: Vec<u8>| panic!("Length of file is invalid: {} (expected {})", v.len(), 0x8000));
-        MemMap {
-            ram: [0; 0x800],
-            mapper: data,
+                let buf = nesfile.data;
+
+                let mut data = Box::new([0; MAPPER_SPACE]);
+                for i in 0..buf.len() {
+                    data[i] = buf[i];
+                }
+                // let data: [u8; 0x8000] = buf.try_into()
+                //     .unwrap_or_else(|v: Vec<u8>| panic!("Length of file is invalid: {} (expected {})", v.len(), 0x8000));
+                MemMap {
+                    ram: [0; 0x800],
+                    mapper: data,
+                }
+            },
         }
     }
 }
