@@ -7,7 +7,7 @@ pub mod inst;
 
 pub const CPU_FREQ: u64 = 1_789_773;
 
-pub const MASTER_FREQ: u64      = 21_477_272;
+pub const MASTER_FREQ: u64 = 21_477_272;
 pub const MASTER_FREQ_60HZ: u64 = 21_441_960;
 
 // TODO: change visibility of various enums (from pub to private)??
@@ -39,24 +39,24 @@ impl From<u8> for ProcFlags {
 
 impl Into<u8> for ProcFlags {
     fn into(self) -> u8 {
-        self.c as u8 |
-        (self.z as u8) << 1 |
-        (self.i as u8) << 2 |
-        (self.d as u8) << 3 |
-        (self.b as u8) << 4 |
-        0b0010_0000 |
-        (self.v as u8) << 6 |
-        (self.n as u8) << 7
+        self.c as u8
+            | (self.z as u8) << 1
+            | (self.i as u8) << 2
+            | (self.d as u8) << 3
+            | (self.b as u8) << 4
+            | 0b0010_0000
+            | (self.v as u8) << 6
+            | (self.n as u8) << 7
     }
 }
 
 pub struct Registers {
-    pub a: u8,    // Accumulator
-    pub x: u8,    // X index register
-    pub y: u8,    // Y index register
-    pub p: ProcFlags,    // Processor status
-    pub sp: u8,   // Stack pointer
-    pub pc: u16,  // Program counter
+    pub a: u8,        // Accumulator
+    pub x: u8,        // X index register
+    pub y: u8,        // Y index register
+    pub p: ProcFlags, // Processor status
+    pub sp: u8,       // Stack pointer
+    pub pc: u16,      // Program counter
 }
 
 impl Registers {
@@ -89,7 +89,10 @@ impl CPU {
 
     pub fn print_state(&self) -> () {
         println!("CPU STATE:");
-        println!("  a: {:02x}, x: {:02x}, y: {:02x}", self.reg.a, self.reg.x, self.reg.y);
+        println!(
+            "  a: {:02x}, x: {:02x}, y: {:02x}",
+            self.reg.a, self.reg.x, self.reg.y
+        );
         let p: u8 = self.reg.p.into();
         println!("  p: {:08b}", p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
@@ -98,21 +101,21 @@ impl CPU {
     }
 
     /// "Cycle" the cpu.
-    /// 
+    ///
     /// Cycles: `1`
     pub fn cycle(&mut self) -> () {
         self.cycles += 1;
     }
 
     /// Read the value at the address `addr` without any cycles
-    /// 
+    ///
     /// Cycles: `0`
     pub fn read_addr_nocycle(&mut self, addr: u16) -> u8 {
         self.mem.read(addr)
     }
 
     /// Read the value at the address `addr`
-    /// 
+    ///
     /// Cycles: `1`
     pub fn read_addr_cycle(&mut self, addr: u16) -> u8 {
         self.cycle();
@@ -120,7 +123,7 @@ impl CPU {
     }
 
     /// Write the value `val` to the address `addr`
-    /// 
+    ///
     /// Cycles: `1`
     pub fn write_addr_cycle(&mut self, addr: u16, val: u8) -> () {
         self.cycle();
@@ -128,14 +131,14 @@ impl CPU {
     }
 
     /// Read the value pointe to by the pc without any cycles.
-    /// 
+    ///
     /// Cycles: `0`
     pub fn pc_read_nocycle(&self) -> u8 {
         self.mem.read(self.reg.pc)
     }
-    
+
     /// Read the value pointe to by the pc.
-    /// 
+    ///
     /// Cycles: `1`
     pub fn pc_read(&mut self) -> u8 {
         self.cycle();
@@ -143,41 +146,39 @@ impl CPU {
     }
 
     /// Increment the pc.
-    /// 
+    ///
     /// Cycles: `0`
     pub fn pc_inc(&mut self) -> () {
-        self.reg.pc += 1;   // https://www.nesdev.org/wiki/Cycle_counting#Instruction_timings
+        self.reg.pc += 1; // https://www.nesdev.org/wiki/Cycle_counting#Instruction_timings
     }
 
     /// Read the value pointed to by the pc, then increment the pc.
-    /// 
+    ///
     /// Cycles: `1`
     pub fn pc_read_inc(&mut self) -> u8 {
-        let val = self.pc_read();   // +1 cycle
+        let val = self.pc_read(); // +1 cycle
         self.pc_inc();
         val
     }
-    
+
     /// Add an offset to the value of the pc
-    /// 
+    ///
     /// Cycles: `1` (`+1` if to a new page)
     fn pc_offset_cycle(&mut self, offset: i8) -> () {
         let old_pc = self.reg.pc;
         let new_pc = old_pc.wrapping_add_signed(offset.into());
         if (new_pc & 0xff00 != old_pc & 0xff00) {
-            self.cycle();   // +1 cycle
+            self.cycle(); // +1 cycle
         }
         self.reg.pc = new_pc;
-        self.cycle();       // +1 cycle
+        self.cycle(); // +1 cycle
     }
 
-
-
     /// Read the value at address $00(pc+x/y).
-    /// 
+    ///
     /// Cycles: `2` (if page crossed)
     pub fn zp_read_cycle(&mut self, ir: IndexRegister) -> u8 {
-        let operand = self.pc_read();   // +1 cycle
+        let operand = self.pc_read(); // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
             IndexRegister::X => self.reg.x, //TODO: have +1 cycle?
@@ -190,43 +191,57 @@ impl CPU {
     }
 
     /// Read the value at address $00(pc+x/y), and increment the pc.
-    /// 
+    ///
     /// Cycles: `2` (`+1` if x/y)
     pub fn zp_read_inc(&mut self, ir: IndexRegister) -> u8 {
-        let operand = self.pc_read_inc();   // +1 cycle
+        let operand = self.pc_read_inc(); // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => { self.cycle(); self.reg.x },    // +1 cycle
-            IndexRegister::Y => { self.cycle(); self.reg.y },    // +1 cycle
+            IndexRegister::X => {
+                self.cycle();
+                self.reg.x
+            } // +1 cycle
+            IndexRegister::Y => {
+                self.cycle();
+                self.reg.y
+            } // +1 cycle
         };
         // if operand as u16 + delta as u16 > 0xff {
-            // self.cycle();
+        // self.cycle();
         // }
         self.read_addr_cycle(as_address(operand + delta, 0x00)) // +1 cycle
     }
 
     /// Write the value `val` to the address $00(pc+x/y), and increment the pc.
-    /// 
+    ///
     /// Cycles: `2` (`+1` if x/y)
     pub fn zp_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
-        let operand = self.pc_read_inc();  // +1 cycle
+        let operand = self.pc_read_inc(); // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => { self.cycle(); self.reg.x},// always +1 cycle
-            IndexRegister::Y => { self.cycle(); self.reg.y},// always +1 cycle
+            IndexRegister::X => {
+                self.cycle();
+                self.reg.x
+            } // always +1 cycle
+            IndexRegister::Y => {
+                self.cycle();
+                self.reg.y
+            } // always +1 cycle
         };
         let addr = as_address(operand + delta, 0x00);
-        self.write_addr_cycle(addr, val);   // +1 cycle
+        self.write_addr_cycle(addr, val); // +1 cycle
     }
 
-
     /// Read the value at address $(pc)<<8|(pc+1) +x/y
-    /// 
+    ///
     /// Cycles: `2`
     pub fn abs_read_cycle(&mut self, ir: IndexRegister) -> u8 {
-        let l = self.pc_read();     // +1 cycle
-        // "m: u8 = self.pc_read(pc+1);"
-        let m = {self.cycle(); self.mem.read(self.reg.pc+1)};   // +1 cycle
+        let l = self.pc_read(); // +1 cycle
+                                // "m: u8 = self.pc_read(pc+1);"
+        let m = {
+            self.cycle();
+            self.mem.read(self.reg.pc + 1)
+        }; // +1 cycle
 
         let addr = as_address(l, m);
         let delta = match ir {
@@ -238,15 +253,15 @@ impl CPU {
         //     self.cycle();
         // }
         // TODO? change this?
-        self.read_addr_nocycle(addr + delta)  // +0 cycle
+        self.read_addr_nocycle(addr + delta) // +0 cycle
     }
 
     /// Read the value at address $(pc)<<8|(pc+1) +x/y, and increment the pc.
-    /// 
+    ///
     /// Cycles: `3` (`+1` if page crossed)
     pub fn abs_read_inc(&mut self, ir: IndexRegister) -> u8 {
-        let l = self.pc_read_inc();     // +1 cycle
-        let m = self.pc_read_inc();     // +1 cycle
+        let l = self.pc_read_inc(); // +1 cycle
+        let m = self.pc_read_inc(); // +1 cycle
         let addr = as_address(l, m);
         let delta = match ir {
             IndexRegister::N => 0,
@@ -256,11 +271,11 @@ impl CPU {
         if (addr & 0xff) + delta > 0xff {
             self.cycle();
         }
-        self.read_addr_cycle(addr + delta)  // +1 cycle
+        self.read_addr_cycle(addr + delta) // +1 cycle
     }
 
     /// Write the value `val` to the address $(pc)<<8|(pc+1) +x/y, and increment the pc.
-    /// 
+    ///
     /// Cycles: `3`
     pub fn abs_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
         let l = self.pc_read_inc(); // +1 cycle
@@ -268,17 +283,21 @@ impl CPU {
         let addr = as_address(l, m);
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => { self.cycle(); self.reg.x},
-            IndexRegister::Y => { self.cycle(); self.reg.y},
+            IndexRegister::X => {
+                self.cycle();
+                self.reg.x
+            }
+            IndexRegister::Y => {
+                self.cycle();
+                self.reg.y
+            }
         } as u16;
         // ?from wiki: "assumes the worst case of page crossing and always spends 1 extra read cycle"
-        self.write_addr_cycle(addr + delta, val);   // +1 cycle
+        self.write_addr_cycle(addr + delta, val); // +1 cycle
     }
 
-
-
     /// Read the operand in the way specified by the addressing mode
-    /// 
+    ///
     /// Cycles:
     /// - Acc: `0`
     /// - Imm: `1`
@@ -288,8 +307,8 @@ impl CPU {
     pub fn read_operand_inc(&mut self, am: AddrMode) -> u8 {
         match am {
             AddrMode::Acc => self.reg.a,
-            AddrMode::Imm => self.pc_read_inc(),                       // +1
-            AddrMode::ZP(ir)  => self.zp_read_inc(ir),  // +2(+1)
+            AddrMode::Imm => self.pc_read_inc(),        // +1
+            AddrMode::ZP(ir) => self.zp_read_inc(ir),   // +2(+1)
             AddrMode::Abs(ir) => self.abs_read_inc(ir), // +3(+1)
             AddrMode::Ind(ir) => self.ind_read_inc(ir), // +5(-1)
             AddrMode::Imp => panic!("Implied does not have an operand"),
@@ -298,16 +317,16 @@ impl CPU {
     }
 
     /// Write `val` to the operand in the way specified by the addressing mode
-    /// 
+    ///
     /// Cycles:
     /// - Zp : `2`(`+1` for x/y)
     /// - Abs: `3`
     /// - Ind: `5`
     pub fn write_operand_inc(&mut self, am: AddrMode, val: u8) {
         match am {
-            AddrMode::ZP(ir)  => self.zp_write_inc(val, ir),     // +2(+1 x/y)
-            AddrMode::Abs(ir) => self.abs_write_inc(val, ir),    // +3
-            AddrMode::Ind(ir) => self.ind_write_inc(val, ir),    // +5
+            AddrMode::ZP(ir) => self.zp_write_inc(val, ir), // +2(+1 x/y)
+            AddrMode::Abs(ir) => self.abs_write_inc(val, ir), // +3
+            AddrMode::Ind(ir) => self.ind_write_inc(val, ir), // +5
             AddrMode::Acc => unreachable!(),
             AddrMode::Imp => unreachable!(),
             AddrMode::Imm => unreachable!(),
@@ -315,44 +334,42 @@ impl CPU {
         }
     }
 
-
-
     /// Get the indirect address ... yeah
-    /// 
+    ///
     /// Cycles: `2`
     pub fn get_indirect(&mut self, addr: u16) -> u16 {
-        let l = self.read_addr_cycle(addr);     // +1 cycle
-        let m = self.read_addr_cycle(addr+1);   // +1 cycle
+        let l = self.read_addr_cycle(addr); // +1 cycle
+        let m = self.read_addr_cycle(addr + 1); // +1 cycle
         as_address(l, m)
     }
-    
+
     /// Read the indirect address in relation to x or y
-    /// 
+    ///
     /// Cycles: `5` for x, `4` (`+1` if page crossed) for y
     pub fn ind_read_inc(&mut self, ir: IndexRegister) -> u8 {
         let pcval = self.pc_read_inc(); // +1 cycle
         match ir {
             IndexRegister::X => {
                 let ptr = as_address(pcval + self.reg.x, 0x00);
-                let addr = self.get_indirect(ptr as u16);     // +2 cycles
-                self.cycle();               //?? +1 cycle extra??
-                self.read_addr_cycle(addr)  // +1 cycle
-            },
+                let addr = self.get_indirect(ptr as u16); // +2 cycles
+                self.cycle(); //?? +1 cycle extra??
+                self.read_addr_cycle(addr) // +1 cycle
+            }
             IndexRegister::Y => {
                 let ptr = as_address(pcval, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr + delta);     // +2 cycles
+                let addr = self.get_indirect(ptr + delta); // +2 cycles
                 if (ptr & 0xff) + self.reg.y as u16 > 0xff {
-                    self.cycle();   // +1 cycle
+                    self.cycle(); // +1 cycle
                 }
-                self.read_addr_cycle(addr)  // +1 cycle
-            },
-            IndexRegister::N => unreachable!()
+                self.read_addr_cycle(addr) // +1 cycle
+            }
+            IndexRegister::N => unreachable!(),
         }
     }
 
     /// Write `val` to the indirect address in relation to x or y
-    /// 
+    ///
     /// Cycles: `5` for x and y
     pub fn ind_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
         // TODO: this one seems a bit sketchy... idk...
@@ -360,25 +377,23 @@ impl CPU {
         match ir {
             IndexRegister::X => {
                 let ptr = as_address(pcval + self.reg.x, 0x00);
-                let addr = self.get_indirect(ptr as u16);     // +2 cycles
-                self.cycle();                       // +1 cycle extra
-                self.write_addr_cycle(addr, val)    // +1 cycle
-            },
+                let addr = self.get_indirect(ptr as u16); // +2 cycles
+                self.cycle(); // +1 cycle extra
+                self.write_addr_cycle(addr, val) // +1 cycle
+            }
             IndexRegister::Y => {
                 let ptr = as_address(pcval, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr + delta);     // +2 cycles
-                self.cycle();                       // +1 cycle extra
-                self.write_addr_cycle(addr, val)    // +1 cycle
-            },
-            IndexRegister::N => unreachable!()
+                let addr = self.get_indirect(ptr + delta); // +2 cycles
+                self.cycle(); // +1 cycle extra
+                self.write_addr_cycle(addr, val) // +1 cycle
+            }
+            IndexRegister::N => unreachable!(),
         }
     }
 
-    
-
     fn fetch_next_op(&mut self) -> u8 {
-        self.pc_read_inc()  // 1 cycle
+        self.pc_read_inc() // 1 cycle
     }
 
     fn fetch_next_inst(&mut self) -> Inst {
@@ -390,7 +405,7 @@ impl CPU {
     }
 
     fn fetch_next_op_inst(&mut self) -> (u8, Inst) {
-        let op = self.fetch_next_op();  // 1 cycle
+        let op = self.fetch_next_op(); // 1 cycle
         (op, INST_TABLE[op as usize])
     }
 
@@ -400,8 +415,8 @@ impl CPU {
 
     pub fn fetch_and_run(&mut self) -> () {
         let cycles_before = self.cycles;
-        let inst = self.fetch_next_inst();  // 1 cycle
-        self.run_inst(inst);                      // n cycles
+        let inst = self.fetch_next_inst(); // 1 cycle
+        self.run_inst(inst); // n cycles
         let cycles_after = self.cycles;
         if cycles_after - cycles_before == 1 {
             self.cycle();
@@ -410,8 +425,8 @@ impl CPU {
 
     pub fn fetch_and_run_dbg(&mut self) -> () {
         let cycles_before = self.cycles;
-        let (op, inst) = self.fetch_next_op_inst();  // 1 cycle
-        self.run_inst(inst);                                   // n cycles
+        let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
+        self.run_inst(inst); // n cycles
         let cycles_after = self.cycles;
         print!(" inst {inst:?} (op: ${op:02x}) ");
         if cycles_after - cycles_before == 1 {

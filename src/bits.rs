@@ -32,7 +32,7 @@ impl Addr for u16 {
 }
 
 /// Combine two `u8` into a `u16`.
-/// 
+///
 /// The first argument is the least significant byte, and the second is the most significant byte.
 pub fn as_address(lsb: u8, msb: u8) -> u16 {
     ((msb as u16) << 8) | lsb as u16

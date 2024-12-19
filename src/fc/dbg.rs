@@ -7,7 +7,7 @@ use super::CPU;
 use super::FC;
 
 pub struct Debugger {
-    fc: FC
+    fc: FC,
 }
 
 impl Debugger {
@@ -38,14 +38,17 @@ impl Debugger {
                             self.fc.cpu.fetch_and_run();
                             i += 1;
                             if i % (CPU_FREQ * 10) == 0 {
-                                println!("{}, took: {}",i, start.elapsed().as_secs_f32());
+                                println!("{}, took: {}", i, start.elapsed().as_secs_f32());
                                 start = Instant::now();
                             }
                         },
-                        "s" => {self.fc.cpu.fetch_and_run_dbg(); self.fc.cpu.print_state();},
+                        "s" => {
+                            self.fc.cpu.fetch_and_run_dbg();
+                            self.fc.cpu.print_state();
+                        }
                         _ => println!("Unknown command: {}", parts[0]),
                     }
-                },
+                }
                 Err(err) => println!("An error occurred: {}", err),
             }
         }

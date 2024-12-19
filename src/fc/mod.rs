@@ -3,11 +3,11 @@ use mem::MemMap;
 use crate::fc::cpu::*;
 
 pub mod cpu;
-pub mod mem;
 pub mod dbg;
+pub mod mem;
 
 pub struct FC {
-    cpu: CPU
+    cpu: CPU,
 }
 
 impl FC {
@@ -17,8 +17,7 @@ impl FC {
 
     pub fn from_file(filename: &str) -> FC {
         let mut cpu = CPU::new();
-        cpu.mem = MemMap::from_file(filename)
-            .expect(&format!("File not found: {filename}"));
+        cpu.mem = MemMap::from_file(filename).expect(&format!("File not found: {filename}"));
         FC { cpu }
     }
 

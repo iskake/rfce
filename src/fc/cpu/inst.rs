@@ -1,34 +1,33 @@
-use std::ops::{Shl,Shr};
-
 use crate::bits::Bitwise;
 
 use super::CPU;
 
 #[derive(Clone, Copy, Debug)]
 pub enum IndexRegister {
-    N,  // None
+    N, // None
     X,
     Y,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum AddrMode {
-    Imp,   // Implicit
-    Acc,   // Accumulator
-    Imm,   // Immediate
-    ZP(IndexRegister),    // Zero Page ($0000-$00ff)
+    Imp,               // Implicit
+    Acc,               // Accumulator
+    Imm,               // Immediate
+    ZP(IndexRegister), // Zero Page ($0000-$00ff)
     // ZP(X),   // Zero Page,X
     // ZP(Y),   // Zero Page,Y
-    Rel,   // Relative
-    Abs(IndexRegister),   // Absolute
+    Rel,                // Relative
+    Abs(IndexRegister), // Absolute
     // Abs(X),  // Absolute,X
     // Abs(Y),  // Absolute,Y
-    Ind(IndexRegister),   // Indirect
-    // Ind(X),  // Indexed Indirect (X)
-    // Ind(Y),  // Indexed Indirect (Y)
+    Ind(IndexRegister), // Indirect
+                        // Ind(X),  // Indexed Indirect (X)
+                        // Ind(Y),  // Indexed Indirect (Y)
 }
 
 #[derive(Clone,Copy,Debug)]
+#[rustfmt::skip]
 pub enum Inst { 
     ADC(AddrMode), AND(AddrMode), ASL(AddrMode), BCC(AddrMode), BCS(AddrMode), BEQ(AddrMode), BIT(AddrMode),
     BMI(AddrMode), BNE(AddrMode), BPL(AddrMode), BRK(AddrMode), BVC(AddrMode), BVS(AddrMode), CLC(AddrMode),
@@ -41,10 +40,11 @@ pub enum Inst {
     ILL(u8), STP(AddrMode),
 }
 
-use Inst::*;
 use AddrMode::*;
 use IndexRegister::*;
+use Inst::*;
 
+#[rustfmt::skip]
 pub const INST_TABLE: [Inst; 256] = [
     BRK(Imp   ), ORA(Ind(X)), ILL(0x02  ), ILL(0x03  ), ILL(0x04  ), ORA(ZP(N) ), ASL(ZP(N) ), ILL(0x07  ), 
     PHP(Imp   ), ORA(Imm   ), ASL(Acc   ), ILL(0x0b  ), ILL(0x0c  ), ORA(Abs(N)), ASL(Abs(N)), ILL(0x0f  ), 
@@ -89,15 +89,15 @@ impl Inst {
         match self {
             Inst::NOP(_am) => (),
             Inst::ADC(am) => adc(cpu, am, false),
-            Inst::AND(am) => a_fn(cpu, am, |a,m| a & m),
-            Inst::EOR(am) => a_fn(cpu, am, |a,m| a ^ m),
-            Inst::ORA(am) => a_fn(cpu, am, |a,m| a | m),
+            Inst::AND(am) => a_fn(cpu, am, |a, m| a & m),
+            Inst::EOR(am) => a_fn(cpu, am, |a, m| a ^ m),
+            Inst::ORA(am) => a_fn(cpu, am, |a, m| a | m),
             Inst::ASL(am) => rot(cpu, am, false, true),
             Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
-            Inst::BCS(_) => branch(cpu,  cpu.reg.p.c),
-            Inst::BEQ(_) => branch(cpu,  cpu.reg.p.z),
+            Inst::BCS(_) => branch(cpu, cpu.reg.p.c),
+            Inst::BEQ(_) => branch(cpu, cpu.reg.p.z),
             Inst::BIT(_am) => todo!("instruction BIT"),
-            Inst::BMI(_) => branch(cpu,  cpu.reg.p.n),
+            Inst::BMI(_) => branch(cpu, cpu.reg.p.n),
             Inst::BNE(_) => branch(cpu, !cpu.reg.p.z),
             Inst::BPL(_) => branch(cpu, !cpu.reg.p.n),
             Inst::BRK(_am) => todo!("instruction BRK"),
@@ -150,7 +150,7 @@ impl Inst {
     }
 }
 
-fn a_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8,u8) -> u8) {
+fn a_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
     cpu.reg.a = f(cpu.reg.a, cpu.read_operand_inc(am));
     cpu.reg.p.z = cpu.reg.a == 0;
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
@@ -188,7 +188,7 @@ fn st(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
 
 fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
     let a = cpu.reg.a as u16;
-    let m = (cpu.read_operand_inc(am) ^ (if sbc {0xff} else {0})) as u16;
+    let m = (cpu.read_operand_inc(am) ^ (if sbc { 0xff } else { 0 })) as u16;
     let c = cpu.reg.p.c as u16;
 
     let result = a + m + c;
@@ -215,43 +215,45 @@ fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
 }
 
 fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
-    let shift_fn: fn(u8) -> u8 = if left {|x| x << 1} else {|x| x >> 1};
-    let pad_amount = if left {0} else {7};
+    let shift_fn: fn(u8) -> u8 = if left { |x| x << 1 } else { |x| x >> 1 };
+    let pad_amount = if left { 0 } else { 7 };
 
     let val = match am {
         Acc => {
             let a = cpu.reg.a;
-            cpu.reg.p.c = a.test_bit(7);    // TODO: is this _really_ just in the case of A? check.
+            cpu.reg.p.c = a.test_bit(7); // TODO: is this _really_ just in the case of A? check.
             let new_val = (a << 1) | cpu.reg.p.c as u8;
             cpu.reg.a = new_val;
             new_val
-        },
+        }
         ZP(ir) => {
-            let val = cpu.zp_read_cycle(ir);  // !! +2 cycles !!
+            let val = cpu.zp_read_cycle(ir); // !! +2 cycles !!
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
-            let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
-            cpu.zp_write_inc(new_val, ir);        // +2(+1) cycles
+            let new_val =
+                shift_fn(val) | (if rotate { cpu.reg.p.c as u8 } else { 0 } << pad_amount);
+            cpu.zp_write_inc(new_val, ir); // +2(+1) cycles
             new_val
-        },
+        }
         Abs(ir) => {
-            let val = cpu.abs_read_cycle(ir);  // !! +2 cycles !!
+            let val = cpu.abs_read_cycle(ir); // !! +2 cycles !!
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
-            let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
-            cpu.abs_write_inc(new_val, ir);        // +3(+1) cycles
+            let new_val =
+                shift_fn(val) | (if rotate { cpu.reg.p.c as u8 } else { 0 } << pad_amount);
+            cpu.abs_write_inc(new_val, ir); // +3(+1) cycles
             new_val
             // = 5(+1)
-        },
+        }
         _ => unreachable!(),
     };
     cpu.reg.p.n = val.test_bit(7);
 }
 
 fn branch(cpu: &mut CPU, condition: bool) -> () {
-    let offset = cpu.pc_read_inc() as i8;   // +1 cycle
+    let offset = cpu.pc_read_inc() as i8; // +1 cycle
     if condition {
-        cpu.pc_offset_cycle(offset);            // +1(+1) cycle(s)
+        cpu.pc_offset_cycle(offset); // +1(+1) cycle(s)
     }
 }
 

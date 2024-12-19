@@ -1,7 +1,7 @@
 use crate::fc::dbg::Debugger;
 
-pub mod fc;
 pub mod bits;
+pub mod fc;
 
 fn main() {
     println!("Running the cpu tester!");
