@@ -107,9 +107,9 @@ impl Inst {
             Inst::CLD(_) => cpu.reg.p.d = false,
             Inst::CLI(_) => cpu.reg.p.i = false,
             Inst::CLV(_) => cpu.reg.p.v = false,
-            Inst::CMP(_am) => todo!("instruction CMP"),
-            Inst::CPX(_am) => todo!("instruction CPX"),
-            Inst::CPY(_am) => todo!("instruction CPY"),
+            Inst::CMP(am) => cmp(cpu, am, InstrReg::A),
+            Inst::CPX(am) => cmp(cpu, am, InstrReg::X),
+            Inst::CPY(am) => cmp(cpu, am, InstrReg::Y),
             Inst::DEC(_am) => todo!("instruction DEC"),
             Inst::DEX(_am) => todo!("instruction DEX"),
             Inst::DEY(_am) => todo!("instruction DEY"),
@@ -197,6 +197,20 @@ fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
     cpu.reg.p.c = result > 0xff;
     cpu.reg.p.z = result as u8 == 0;
     cpu.reg.p.v = (!(a ^ m) & (a ^ result)).test_bit(7);
+    cpu.reg.p.n = result.test_bit(7);
+}
+
+fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
+    let r = match instr_reg {
+        InstrReg::A => cpu.reg.a,
+        InstrReg::X => cpu.reg.x,
+        InstrReg::Y => cpu.reg.y,
+    };
+    let m = cpu.read_operand_inc(am);
+    let result = r - m;
+
+    cpu.reg.p.c = r >= m;
+    cpu.reg.p.c = r == m;
     cpu.reg.p.n = result.test_bit(7);
 }
 
