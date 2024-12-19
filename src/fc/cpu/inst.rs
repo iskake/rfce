@@ -11,19 +11,15 @@ pub enum IndexRegister {
 
 #[derive(Clone, Copy, Debug)]
 pub enum AddrMode {
-    Imp,               // Implicit
-    Acc,               // Accumulator
-    Imm,               // Immediate
-    ZP(IndexRegister), // Zero Page ($0000-$00ff)
-    // ZP(X),   // Zero Page,X
-    // ZP(Y),   // Zero Page,Y
+    Imp,                // Implicit
+    Acc,                // Accumulator
+    Imm,                // Immediate
+    ZP(IndexRegister),  // Zero Page ($0000-$00ff)
     Rel,                // Relative
-    Abs(IndexRegister), // Absolute
-    // Abs(X),  // Absolute,X
-    // Abs(Y),  // Absolute,Y
+    Abs(IndexRegister), // Absolute (N/X/Y)
     Ind(IndexRegister), // Indirect
-                        // Ind(X),  // Indexed Indirect (X)
-                        // Ind(Y),  // Indexed Indirect (Y)
+                        // (Indirect,X)
+                        // (Indirect),Y
 }
 
 #[derive(Clone,Copy,Debug)]
@@ -87,7 +83,7 @@ impl Inst {
 
     pub fn run(self, cpu: &mut CPU) -> () {
         match self {
-            Inst::NOP(_am) => (),
+            Inst::NOP(_) => (),
             Inst::ADC(am) => adc(cpu, am, false),
             Inst::AND(am) => a_fn(cpu, am, |a, m| a & m),
             Inst::EOR(am) => a_fn(cpu, am, |a, m| a ^ m),
@@ -96,7 +92,7 @@ impl Inst {
             Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
             Inst::BCS(_) => branch(cpu, cpu.reg.p.c),
             Inst::BEQ(_) => branch(cpu, cpu.reg.p.z),
-            Inst::BIT(_am) => todo!("instruction BIT"),
+            Inst::BIT(am) => bit(cpu, am),
             Inst::BMI(_) => branch(cpu, cpu.reg.p.n),
             Inst::BNE(_) => branch(cpu, !cpu.reg.p.z),
             Inst::BPL(_) => branch(cpu, !cpu.reg.p.n),
@@ -154,6 +150,16 @@ fn a_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
     cpu.reg.a = f(cpu.reg.a, cpu.read_operand_inc(am));
     cpu.reg.p.z = cpu.reg.a == 0;
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
+}
+
+fn bit(cpu: &mut CPU, am: AddrMode) -> () {
+    let a = cpu.reg.a;
+    let m = cpu.read_operand_inc(am);
+    let result = a & m;
+
+    cpu.reg.p.z = result == 0;
+    cpu.reg.p.v = m.test_bit(6);
+    cpu.reg.p.n = m.test_bit(7);
 }
 
 enum InstrReg {
