@@ -10,6 +10,10 @@ pub const CPU_FREQ: u64 = 1_789_773;
 pub const MASTER_FREQ: u64 = 21_477_272;
 pub const MASTER_FREQ_60HZ: u64 = 21_441_960;
 
+pub const NMI_VECTOR: u16 = 0xfffa;
+pub const RESET_VECTOR: u16 = 0xfffc;
+pub const IRQ_VECTOR: u16 = 0xfffe;
+
 // TODO: change visibility of various enums (from pub to private)??
 
 #[derive(Clone, Copy)]
@@ -307,7 +311,7 @@ impl CPU {
         match am {
             // TODO: shouldn't it really be the write func that has the fewer cycle things?
             AddrMode::Acc => self.reg.a,
-            AddrMode::Imm => self.pc_read(),        // +1
+            AddrMode::Imm => self.pc_read(),              // +1
             AddrMode::ZP(ir) => self.zp_read_cycle(ir),   // +2
             AddrMode::Abs(ir) => self.abs_read_cycle(ir), // +2
             AddrMode::Ind(_) => panic!("Operand not needed for any such instructions."),
@@ -413,22 +417,30 @@ impl CPU {
     }
 
     /// Pull from the stack, increasing sp by 1
-    /// 
+    ///
     /// Cycles: `3`
     fn pull(&mut self) -> u8 {
-        self.cycle();       // +1
+        self.cycle(); // +1
         self.reg.sp += 1;
-        self.cycle();       // +1
+        self.cycle(); // +1
+        self.read_addr_cycle(as_address(self.reg.sp, 0x01)) // +1
+    }
+
+    /// Pull from the stack, increasing sp by 1. Does NOT 'waste' any extra cycles
+    ///
+    /// Cycles: `1`
+    fn pull_noextra(&mut self) -> u8 {
+        self.reg.sp += 1;
         self.read_addr_cycle(as_address(self.reg.sp, 0x01)) // +1
     }
 
     /// Push `val` onto the stack, decreasing sp by 1
-    /// 
+    ///
     /// Cycles: `2`
     fn push(&mut self, val: u8) -> () {
-        self.write_addr_cycle(as_address(self.reg.sp, 0x01), val);  // +1
+        self.write_addr_cycle(as_address(self.reg.sp, 0x01), val); // +1
         self.reg.sp -= 1;
-        self.cycle();   // +1
+        self.cycle(); // +1
     }
 
     fn fetch_next_op(&mut self) -> u8 {

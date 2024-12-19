@@ -1,6 +1,6 @@
-use crate::bits::Bitwise;
+use crate::bits::{as_address, Bitwise};
 
-use super::CPU;
+use super::{CPU, IRQ_VECTOR};
 
 #[derive(Clone, Copy, Debug)]
 pub enum IndexRegister {
@@ -83,64 +83,64 @@ impl Inst {
 
     pub fn run(self, cpu: &mut CPU) -> () {
         match self {
-            Inst::NOP(_) => (),
-            Inst::BRK(_am) => todo!("instruction BRK"),
+            Inst::NOP(_a) => (),
             Inst::ADC(am) => adc(cpu, am, false),
             Inst::AND(am) => a_op_fn(cpu, am, |a, m| a & m),
             Inst::EOR(am) => a_op_fn(cpu, am, |a, m| a ^ m),
             Inst::ORA(am) => a_op_fn(cpu, am, |a, m| a | m),
             Inst::ASL(am) => rot(cpu, am, false, true),
             Inst::BIT(am) => bit(cpu, am),
-            Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
-            Inst::BCS(_) => branch(cpu, cpu.reg.p.c),
-            Inst::BEQ(_) => branch(cpu, cpu.reg.p.z),
-            Inst::BMI(_) => branch(cpu, cpu.reg.p.n),
-            Inst::BNE(_) => branch(cpu, !cpu.reg.p.z),
-            Inst::BPL(_) => branch(cpu, !cpu.reg.p.n),
-            Inst::BVC(_) => branch(cpu, !cpu.reg.p.v),
-            Inst::BVS(_) => branch(cpu, cpu.reg.p.v),
-            Inst::CLC(_) => cpu.reg.p.c = false,
-            Inst::CLD(_) => cpu.reg.p.d = false,
-            Inst::CLI(_) => cpu.reg.p.i = false,
-            Inst::CLV(_) => cpu.reg.p.v = false,
+            Inst::BCC(_a) => branch(cpu, !cpu.reg.p.c),
+            Inst::BCS(_a) => branch(cpu, cpu.reg.p.c),
+            Inst::BEQ(_a) => branch(cpu, cpu.reg.p.z),
+            Inst::BMI(_a) => branch(cpu, cpu.reg.p.n),
+            Inst::BNE(_a) => branch(cpu, !cpu.reg.p.z),
+            Inst::BPL(_a) => branch(cpu, !cpu.reg.p.n),
+            Inst::BVC(_a) => branch(cpu, !cpu.reg.p.v),
+            Inst::BVS(_a) => branch(cpu, cpu.reg.p.v),
+            Inst::JMP(am) => jmp(cpu, am, false),
+            Inst::JSR(am) => jmp(cpu, am, true),
+            Inst::RTS(_a) => rts(cpu, false),
+            Inst::RTI(_a) => rts(cpu, true),
+            Inst::BRK(_a) => brk(cpu),
+            Inst::CLC(_a) => cpu.reg.p.c = false,
+            Inst::CLD(_a) => cpu.reg.p.d = false,
+            Inst::CLI(_a) => cpu.reg.p.i = false,
+            Inst::CLV(_a) => cpu.reg.p.v = false,
+            Inst::SEC(_a) => cpu.reg.p.c = true,
+            Inst::SED(_a) => cpu.reg.p.d = true,
+            Inst::SEI(_a) => cpu.reg.p.i = true,
             Inst::CMP(am) => cmp(cpu, am, InstrReg::A),
             Inst::CPX(am) => cmp(cpu, am, InstrReg::X),
             Inst::CPY(am) => cmp(cpu, am, InstrReg::Y),
             Inst::DEC(am) => inc(cpu, am, true),
-            Inst::DEX(_) => set_x(cpu,  cpu.reg.x - 1),
-            Inst::DEY(_) => set_y(cpu,  cpu.reg.y - 1),
+            Inst::DEX(_a) => set_x(cpu, cpu.reg.x - 1),
+            Inst::DEY(_a) => set_y(cpu, cpu.reg.y - 1),
             Inst::INC(am) => inc(cpu, am, false),
-            Inst::INX(_) => set_x(cpu, cpu.reg.x + 1),
-            Inst::INY(_) => set_y(cpu, cpu.reg.y + 1),
-            Inst::JMP(_am) => todo!("instruction JMP"),
-            Inst::JSR(_am) => todo!("instruction JSR"),
+            Inst::INX(_a) => set_x(cpu, cpu.reg.x + 1),
+            Inst::INY(_a) => set_y(cpu, cpu.reg.y + 1),
             Inst::LDA(am) => ld(cpu, am, InstrReg::A),
             Inst::LDX(am) => ld(cpu, am, InstrReg::X),
             Inst::LDY(am) => ld(cpu, am, InstrReg::Y),
             Inst::LSR(am) => rot(cpu, am, false, false),
-            Inst::PHA(_) => cpu.push(cpu.reg.a),
-            Inst::PHP(_) => cpu.push(cpu.reg.p.into()),
-            Inst::PLA(_) => cpu.reg.a = cpu.pull(),
-            Inst::PLP(_) => cpu.reg.p = cpu.pull().into(),
+            Inst::PHA(_a) => cpu.push(cpu.reg.a),
+            Inst::PHP(_a) => cpu.push(cpu.reg.p.into()),
+            Inst::PLA(_a) => cpu.reg.a = cpu.pull(),
+            Inst::PLP(_a) => cpu.reg.p = cpu.pull().into(),
             Inst::ROL(am) => rot(cpu, am, true, true),
             Inst::ROR(am) => rot(cpu, am, true, false),
-            Inst::RTI(_am) => todo!("instruction RTI"),
-            Inst::RTS(_am) => todo!("instruction RTS"),
             Inst::SBC(am) => adc(cpu, am, true),
-            Inst::SEC(_) => cpu.reg.p.c = true,
-            Inst::SED(_) => cpu.reg.p.d = true,
-            Inst::SEI(_) => cpu.reg.p.i = true,
             Inst::STA(am) => st(cpu, am, InstrReg::A),
             Inst::STX(am) => st(cpu, am, InstrReg::X),
             Inst::STY(am) => st(cpu, am, InstrReg::Y),
-            Inst::TAX(_) => set_x(cpu, cpu.reg.a),
-            Inst::TAY(_) => set_y(cpu, cpu.reg.a),
-            Inst::TXA(_) => set_a(cpu, cpu.reg.x),
-            Inst::TYA(_) => set_a(cpu, cpu.reg.y),
-            Inst::TSX(_) => cpu.reg.x = cpu.reg.sp,
-            Inst::TXS(_) => cpu.reg.sp = cpu.reg.x,
+            Inst::TAX(_a) => set_x(cpu, cpu.reg.a),
+            Inst::TAY(_a) => set_y(cpu, cpu.reg.a),
+            Inst::TXA(_a) => set_a(cpu, cpu.reg.x),
+            Inst::TYA(_a) => set_a(cpu, cpu.reg.y),
+            Inst::TSX(_a) => cpu.reg.x = cpu.reg.sp,
+            Inst::TXS(_a) => cpu.reg.sp = cpu.reg.x,
             // Extra:
-            Inst::STP(_am) => todo!("instruction STP"),
+            Inst::STP(_a) => todo!("instruction STP"),
             Inst::ILL(op) => ill(cpu, op),
         }
     }
@@ -293,6 +293,60 @@ fn branch(cpu: &mut CPU, condition: bool) -> () {
     if condition {
         cpu.pc_offset_cycle(offset); // +1(+1) cycle(s)
     }
+}
+
+fn jmp(cpu: &mut CPU, am: AddrMode, jsr: bool) -> () {
+    match am {
+        AddrMode::Abs(N) => {
+            let l = cpu.pc_read_inc(); // +1 cycle
+            let m = if !jsr {
+                cpu.pc_read_inc() // +1 cycle
+            } else {
+                let val = cpu.pc_read_nocycle(); // !!TODO: check (jsr is 5 cycles (w/o opcode))
+
+                // as a side effect of using nocycle, pc is already "pc-1"
+                // (which is what _should_ be pushed)
+                cpu.push(((cpu.reg.pc) >> 8) as u8); // +2
+                cpu.push(((cpu.reg.pc) & 0xff) as u8); // +2
+                val
+            };
+            let addr = as_address(l, m);
+            cpu.reg.pc = addr;
+        }
+        AddrMode::Ind(N) => {
+            let l = cpu.pc_read_inc(); // +1 cycle
+            let m = cpu.pc_read_inc(); // +1 cycle
+            let addr = as_address(l, m);
+            let addr_indirect = cpu.get_indirect(addr); // +2 cycles
+            cpu.reg.pc = addr_indirect;
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn rts(cpu: &mut CPU, rti: bool) -> () {
+    if rti {
+        cpu.reg.p = cpu.pull_noextra().into(); // +1
+    } else {
+        cpu.cycle(); // +1
+    }
+    let l = cpu.pull(); // +3
+    let m = cpu.pull_noextra(); // +1
+    let addr = as_address(l, m);
+    cpu.reg.pc = addr + 1;
+}
+
+fn brk(cpu: &mut CPU) -> () {
+    // TODO: interrupts
+    cpu.push(((cpu.reg.pc + 1) >> 8) as u8); // +2
+    cpu.push(((cpu.reg.pc + 1) & 0xff) as u8); // +2
+    cpu.push(cpu.reg.p.into()); // +2
+    // cpu.reg.p.b = true; // ?
+
+    let l = cpu.read_addr_nocycle(IRQ_VECTOR);
+    let m = cpu.read_addr_nocycle(IRQ_VECTOR + 1);
+    let addr = as_address(l, m);
+    cpu.reg.pc = addr;
 }
 
 fn ill(_: &mut CPU, opcode: u8) -> () {
