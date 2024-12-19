@@ -207,7 +207,7 @@ impl CPU {
 
     /// Write the value `val` to the address $00(pc+x/y), and increment the pc.
     /// 
-    /// Cycles: `2` (`+1` if page crossed)
+    /// Cycles: `2` (`+1` if x/y)
     pub fn zp_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
         let operand = self.pc_read_inc();  // +1 cycle
         let delta = match ir {
@@ -261,7 +261,7 @@ impl CPU {
 
     /// Write the value `val` to the address $(pc)<<8|(pc+1) +x/y, and increment the pc.
     /// 
-    /// Cycles: `3` (`+1` if page crossed)
+    /// Cycles: `3`
     pub fn abs_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
         let l = self.pc_read_inc(); // +1 cycle
         let m = self.pc_read_inc(); // +1 cycle
@@ -273,6 +273,46 @@ impl CPU {
         } as u16;
         // ?from wiki: "assumes the worst case of page crossing and always spends 1 extra read cycle"
         self.write_addr_cycle(addr + delta, val);   // +1 cycle
+    }
+
+
+
+    /// Read the operand in the way specified by the addressing mode
+    /// 
+    /// Cycles:
+    /// - Acc: `0`
+    /// - Imm: `1`
+    /// - Zp : `2`(`+1` for x/y page crossing)
+    /// - Abs: `3`(`+1` for x/y page crossing)
+    /// - Ind: `5`("`-1`"" y NOT page crossing)
+    pub fn read_operand_inc(&mut self, am: AddrMode) -> u8 {
+        match am {
+            AddrMode::Acc => self.reg.a,
+            AddrMode::Imm => self.pc_read_inc(),                       // +1
+            AddrMode::ZP(ir)  => self.zp_read_inc(ir),  // +2(+1)
+            AddrMode::Abs(ir) => self.abs_read_inc(ir), // +3(+1)
+            AddrMode::Ind(ir) => self.ind_read_inc(ir), // +5(-1)
+            AddrMode::Imp => panic!("Implied does not have an operand"),
+            AddrMode::Rel => panic!("Relative operand is only used in branch instructions"),
+        }
+    }
+
+    /// Write `val` to the operand in the way specified by the addressing mode
+    /// 
+    /// Cycles:
+    /// - Zp : `2`(`+1` for x/y)
+    /// - Abs: `3`
+    /// - Ind: `5`
+    pub fn write_operand_inc(&mut self, am: AddrMode, val: u8) {
+        match am {
+            AddrMode::ZP(ir)  => self.zp_write_inc(val, ir),     // +2(+1 x/y)
+            AddrMode::Abs(ir) => self.abs_write_inc(val, ir),    // +3
+            AddrMode::Ind(ir) => self.ind_write_inc(val, ir),    // +5
+            AddrMode::Acc => unreachable!(),
+            AddrMode::Imp => unreachable!(),
+            AddrMode::Imm => unreachable!(),
+            AddrMode::Rel => unreachable!(),
+        }
     }
 
 

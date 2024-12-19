@@ -117,9 +117,9 @@ impl Inst {
             Inst::INY(_am) => todo!("instruction INY"),
             Inst::JMP(_am) => todo!("instruction JMP"),
             Inst::JSR(_am) => todo!("instruction JSR"),
-            Inst::LDA(am) => ld(cpu, am, InstReg::A),
-            Inst::LDX(am) => ld(cpu, am, InstReg::X),
-            Inst::LDY(am) => ld(cpu, am, InstReg::Y),
+            Inst::LDA(am) => ld(cpu, am, InstrReg::A),
+            Inst::LDX(am) => ld(cpu, am, InstrReg::X),
+            Inst::LDY(am) => ld(cpu, am, InstrReg::Y),
             Inst::LSR(am) => rot(cpu, am, false, false),
             Inst::ORA(_am) => todo!("instruction ORA"),
             Inst::PHA(_am) => todo!("instruction PHA"),
@@ -130,13 +130,13 @@ impl Inst {
             Inst::ROR(am) => rot(cpu, am, true, false),
             Inst::RTI(_am) => todo!("instruction RTI"),
             Inst::RTS(_am) => todo!("instruction RTS"),
-            Inst::SBC(_am) => todo!("instruction SBC"),
+            Inst::SBC(am) => sbc(cpu, am),
             Inst::SEC(_) => cpu.reg.p.c = true,
             Inst::SED(_) => cpu.reg.p.d = true,
             Inst::SEI(_) => cpu.reg.p.i = true,
-            Inst::STA(am) => st(cpu, am, InstReg::A),
-            Inst::STX(am) => st(cpu, am, InstReg::X),
-            Inst::STY(am) => st(cpu, am, InstReg::Y),
+            Inst::STA(am) => st(cpu, am, InstrReg::A),
+            Inst::STX(am) => st(cpu, am, InstrReg::X),
+            Inst::STY(am) => st(cpu, am, InstrReg::Y),
             Inst::TAX(_am) => todo!("instruction TAX"),
             Inst::TAY(_am) => todo!("instruction TAY"),
             Inst::TSX(_am) => todo!("instruction TSX"),
@@ -150,45 +150,41 @@ impl Inst {
     }
 }
 
-enum InstReg {
+enum InstrReg {
     A,
     X,
     Y,
 }
 
-fn ld(cpu: &mut CPU, am: AddrMode, ir: InstReg) -> () {
-    let val = match am {
-        AddrMode::Imm => cpu.pc_read_inc(), // +1 cycle
-        AddrMode::ZP(i) => cpu.zp_read_inc(i),   // +2(+1) cycles
-        AddrMode::Abs(i) => cpu.abs_read_inc(i), // +3(+1) cycles
-        AddrMode::Ind(i) => cpu.ind_read_inc(i), // +5(-1??) cycles
-        _ => unreachable!(),
-    };
+fn ld(cpu: &mut CPU, am: AddrMode, inst_reg: InstrReg) -> () {
+    let val = cpu.read_operand_inc(am);
     let z = val == 0;
     let n = val.test_bit(7);
 
-    match ir {
-        InstReg::A => cpu.reg.a = val,
-        InstReg::X => cpu.reg.x = val,
-        InstReg::Y => cpu.reg.y = val,
+    match inst_reg {
+        InstrReg::A => cpu.reg.a = val,
+        InstrReg::X => cpu.reg.x = val,
+        InstrReg::Y => cpu.reg.y = val,
     };
     cpu.reg.p.z = z;
     cpu.reg.p.n = n;
 }
 
-fn st(cpu: &mut CPU, am: AddrMode, ir: InstReg) -> () {
-    let val = match ir {
-        InstReg::A => cpu.reg.a,
-        InstReg::X => cpu.reg.a,
-        InstReg::Y => cpu.reg.a,
+fn st(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
+    let val = match instr_reg {
+        InstrReg::A => cpu.reg.a,
+        InstrReg::X => cpu.reg.a,
+        InstrReg::Y => cpu.reg.a,
     };
 
-    match am {
-        ZP(i)  => cpu.zp_write_inc(val, i),     // +2(+1)
-        Abs(i) => cpu.abs_write_inc(val, i),    // +3
-        Ind(i) => cpu.ind_write_inc(val, i),    // +5
-        _ => unreachable!()
-    }
+    cpu.write_operand_inc(am, val);
+}
+
+fn sbc(cpu: &mut CPU, am: AddrMode) -> () {
+    let a = cpu.reg.a;
+    let val = cpu.read_operand_inc(am);
+    let c = cpu.reg.p.c as u8;
+    
 }
 
 fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
