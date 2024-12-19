@@ -392,6 +392,19 @@ impl CPU {
         }
     }
 
+    fn pull(&mut self) -> u8 {
+        self.cycle();       // +1
+        self.reg.sp += 1;
+        self.cycle();       // +1
+        self.read_addr_cycle(as_address(self.reg.sp, 0x01)) // +1
+    }
+
+    fn push(&mut self, val: u8) -> () {
+        self.write_addr_cycle(as_address(self.reg.sp, 0x01), val);  // +1
+        self.reg.sp -= 1;
+        self.cycle();   // +1
+    }
+
     fn fetch_next_op(&mut self) -> u8 {
         self.pc_read_inc() // 1 cycle
     }
@@ -409,7 +422,7 @@ impl CPU {
         (op, INST_TABLE[op as usize])
     }
 
-    fn run_inst(&mut self, inst: Inst) {
+    fn run_inst(&mut self, inst: Inst) -> () {
         inst.run(self);
     }
 
