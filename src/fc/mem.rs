@@ -1,6 +1,7 @@
 use cart::NESFile;
 
 pub mod cart;
+mod mapper;
 
 const MAPPER_SPACE: usize = 0x10000 - 0x4020;
 
@@ -64,6 +65,7 @@ impl MemMap {
 
     pub fn from_nesfile(nesfile: NESFile) -> MemMap {
         // TODO: fix this mess
+        println!("{:?}", nesfile.mapper_type());
         let buf = nesfile.data;
 
         let mut data = [0; MAPPER_SPACE];

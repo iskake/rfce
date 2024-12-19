@@ -3,10 +3,12 @@ use std::{
     io::{self, Read},
 };
 
+use crate::fc::mem::mapper::MapperType;
+
 const NES_FILE_IDENTIFIER: [u8; 4] = [b'N', b'E', b'S', 0x1a];
 
 pub struct NESFile {
-    pub header: NESFileHeader,
+    header: NESFileHeader,
     pub data: Vec<u8>,
 }
 
@@ -32,25 +34,34 @@ impl NESFile {
                 data: data,
             }
         } else {
-            panic!("oh no")
+            // TODO: actually handle this
+            panic!("File does not have the correct format (identifier corrupted/missing)")
+        }
+    }
+
+    pub fn mapper_type(&self) -> MapperType {
+        match self.header.mapper_type() {
+            0 => MapperType::NROM,
+            i => MapperType::UNKNOWN(i),
         }
     }
 }
 
-pub struct NESFileHeader {
-    prg_rom_size: u8,
-    chr_rom_size: u8,
-    flags6: u8,
-    flags7: u8,
-    flags8: u8,
-    flags9: u8,
-    flags10: u8,
+// TODO: make an enum for iNES / NES 2.0 formats? or ignore because NES2.0 is backwards compatible?
+struct NESFileHeader {
+    pub prg_rom_size: u8,
+    pub chr_rom_size: u8,
+    pub flags6: u8,
+    pub flags7: u8,
+    pub flags8: u8,
+    pub flags9: u8,
+    pub flags10: u8,
     // NES 2.0:
-    flags_chr_ram_size: u8,
-    flags_cpu_ppu_timing: u8,
-    flags_vs_system: u8,
-    flags_misc_roms: u8,
-    flags_default_expansion_device: u8,
+    pub flags_chr_ram_size: u8,
+    pub flags_cpu_ppu_timing: u8,
+    pub flags_vs_system: u8,
+    pub flags_misc_roms: u8,
+    pub flags_default_expansion_device: u8,
 }
 
 impl NESFileHeader {
@@ -68,6 +79,22 @@ impl NESFileHeader {
             flags_vs_system: bytes[9],
             flags_misc_roms: bytes[10],
             flags_default_expansion_device: bytes[11],
+        }
+    }
+
+    fn is_nes20_format(&self) -> bool {
+        self.flags7 & 0x0c == 0x08
+    }
+
+    pub fn mapper_type(&self) -> u16 {
+        // TODO: nes2.0 headers...
+        let m0 = (self.flags6 & 0xf0) >> 4;
+        if !self.is_nes20_format() {
+            m0 as u16
+        } else {
+            let m1 = (self.flags7 & 0xf0) >> 4;
+            let m2 = (self.flags8 & 0xf0) >> 4;
+            ((m2 as u16) << 8) | ((m1 as u16) << 4) | m0 as u16
         }
     }
 }
