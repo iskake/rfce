@@ -44,6 +44,7 @@ impl Into<u8> for ProcFlags {
         (self.i as u8) << 2 |
         (self.d as u8) << 3 |
         (self.b as u8) << 4 |
+        0b0010_0000 |
         (self.v as u8) << 6 |
         (self.n as u8) << 7
     }
