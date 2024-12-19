@@ -412,6 +412,9 @@ impl CPU {
         }
     }
 
+    /// Pull from the stack, increasing sp by 1
+    /// 
+    /// Cycles: `3`
     fn pull(&mut self) -> u8 {
         self.cycle();       // +1
         self.reg.sp += 1;
@@ -419,6 +422,9 @@ impl CPU {
         self.read_addr_cycle(as_address(self.reg.sp, 0x01)) // +1
     }
 
+    /// Push `val` onto the stack, decreasing sp by 1
+    /// 
+    /// Cycles: `2`
     fn push(&mut self, val: u8) -> () {
         self.write_addr_cycle(as_address(self.reg.sp, 0x01), val);  // +1
         self.reg.sp -= 1;
