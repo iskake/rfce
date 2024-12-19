@@ -88,8 +88,7 @@ impl Inst {
     pub fn run(self, cpu: &mut CPU) -> () {
         match self {
             Inst::NOP(_am) => (),
-            Inst::ADC(_am) => todo!("instruction ADC"),
-            Inst::AND(_am) => todo!("instruction AND"),
+            Inst::ADC(am) => adc(cpu, am, false),
             Inst::ASL(am) => rot(cpu, am, false, true),
             Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
             Inst::BCS(_) => branch(cpu,  cpu.reg.p.c),
@@ -130,7 +129,7 @@ impl Inst {
             Inst::ROR(am) => rot(cpu, am, true, false),
             Inst::RTI(_am) => todo!("instruction RTI"),
             Inst::RTS(_am) => todo!("instruction RTS"),
-            Inst::SBC(am) => sbc(cpu, am),
+            Inst::SBC(am) => adc(cpu, am, true),
             Inst::SEC(_) => cpu.reg.p.c = true,
             Inst::SED(_) => cpu.reg.p.d = true,
             Inst::SEI(_) => cpu.reg.p.i = true,
@@ -173,18 +172,25 @@ fn ld(cpu: &mut CPU, am: AddrMode, inst_reg: InstrReg) -> () {
 fn st(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
     let val = match instr_reg {
         InstrReg::A => cpu.reg.a,
-        InstrReg::X => cpu.reg.a,
-        InstrReg::Y => cpu.reg.a,
+        InstrReg::X => cpu.reg.x,
+        InstrReg::Y => cpu.reg.y,
     };
 
     cpu.write_operand_inc(am, val);
 }
 
-fn sbc(cpu: &mut CPU, am: AddrMode) -> () {
-    let a = cpu.reg.a;
-    let val = cpu.read_operand_inc(am);
-    let c = cpu.reg.p.c as u8;
-    
+fn adc(cpu: &mut CPU, am: AddrMode, sbc: bool) -> () {
+    let a = cpu.reg.a as u16;
+    let m = (cpu.read_operand_inc(am) ^ (if sbc {0xff} else {0})) as u16;
+    let c = cpu.reg.p.c as u16;
+
+    let result = a + m + c;
+
+    cpu.reg.a = result as u8;
+    cpu.reg.p.c = result > 0xff;
+    cpu.reg.p.z = result as u8 == 0;
+    cpu.reg.p.v = (!(a ^ m) & (a ^ result)).test_bit(7);
+    cpu.reg.p.n = result.test_bit(7);
 }
 
 fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
@@ -200,7 +206,7 @@ fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
             new_val
         },
         ZP(ir) => {
-            let val = cpu.zp_read_cycle(ir);  // +2 cycles
+            let val = cpu.zp_read_cycle(ir);  // !! +2 cycles !!
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
             let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
@@ -208,7 +214,7 @@ fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
             new_val
         },
         Abs(ir) => {
-            let val = cpu.abs_read_cycle(ir);  // +2 cycles
+            let val = cpu.abs_read_cycle(ir);  // !! +2 cycles !!
             cpu.reg.p.c = val.test_bit(7);
             // cpu.cycle();    // +1 cycle for modify stage
             let new_val = shift_fn(val) | (if rotate {cpu.reg.p.c as u8} else {0} << pad_amount);
