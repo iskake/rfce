@@ -69,9 +69,9 @@ impl Registers {
             a: 0x00,
             x: 0x00,
             y: 0x00,
-            p: 0x00.into(),
-            sp: 0x00,
-            pc: 0x0000,
+            p: 0b0000_0100.into(),
+            sp: 0xfd,
+            pc: 0xfffc,
         }
     }
 }
@@ -105,13 +105,12 @@ impl CPU {
     }
 
     pub fn init(&mut self) -> () {
-        // TODO: all the other initialization things.
-
-        // TODO: does this take any cycles?
         let l = self.read_addr_nocycle(RESET_VECTOR);
         let m = self.read_addr_nocycle(RESET_VECTOR + 1);
         let addr = as_address(l, m);
         self.reg.pc = addr;
+        // This is purely based on the value of the Mesen debugger after RESET
+        self.cycles += 7;
     }
 
     /// "Cycle" the cpu.

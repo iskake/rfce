@@ -39,6 +39,7 @@ impl FC {
     }
 
     fn init(&mut self) -> () {
+        // TODO: all the other initialization things.
         self.cpu.init();
     }
 
