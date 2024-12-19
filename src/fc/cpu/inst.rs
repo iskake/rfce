@@ -135,10 +135,10 @@ impl Inst {
             Inst::STY(am) => st(cpu, am, InstrReg::Y),
             Inst::TAX(_) => set_x(cpu, cpu.reg.a),
             Inst::TAY(_) => set_y(cpu, cpu.reg.a),
-            Inst::TSX(_) => cpu.reg.x = cpu.reg.sp,
             Inst::TXA(_) => set_a(cpu, cpu.reg.x),
-            Inst::TXS(_) => set_a(cpu, cpu.reg.y),
-            Inst::TYA(_) => cpu.reg.a = cpu.reg.sp,
+            Inst::TYA(_) => set_a(cpu, cpu.reg.y),
+            Inst::TSX(_) => cpu.reg.x = cpu.reg.sp,
+            Inst::TXS(_) => cpu.reg.sp = cpu.reg.x,
             // Extra:
             Inst::STP(_am) => todo!("instruction STP"),
             Inst::ILL(op) => ill(cpu, op),
