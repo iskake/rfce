@@ -2,6 +2,10 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 
+use cart::NESFile;
+
+pub mod cart;
+
 pub trait Memory {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, val: u8) -> ();
@@ -60,11 +64,9 @@ impl MemMap {
         }
     }
 
-    pub fn from_file(filename: &str) -> Result<MemMap, io::Error> {
+    pub fn from_nesfile(nesfile: NESFile) -> MemMap {
         // TODO: fix this mess
-        let mut f = File::open(filename)?;
-        let mut buf = Vec::new();
-        f.read_to_end(&mut buf)?;
+        let buf = nesfile.data;
 
         let mut data = [0; 0x10000 - 0x4020];
         for i in 0..buf.len() {
@@ -72,9 +74,9 @@ impl MemMap {
         }
         // let data: [u8; 0x8000] = buf.try_into()
         //     .unwrap_or_else(|v: Vec<u8>| panic!("Length of file is invalid: {} (expected {})", v.len(), 0x8000));
-        Ok(MemMap {
+        MemMap {
             ram: [0; 0x800],
             mapper: data,
-        })
+        }
     }
 }

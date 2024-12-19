@@ -11,7 +11,7 @@ pub struct Debugger {
 
 impl Debugger {
     pub fn new() -> Debugger {
-        let fc = FC::from_file("test1.bin");
+        let fc = FC::from_file("smb.nes");
         Debugger { fc }
     }
 

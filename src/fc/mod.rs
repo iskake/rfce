@@ -1,6 +1,7 @@
 use mem::MemMap;
 
 use crate::fc::cpu::*;
+use crate::fc::mem::cart::*;
 
 pub mod cpu;
 pub mod dbg;
@@ -17,7 +18,8 @@ impl FC {
 
     pub fn from_file(filename: &str) -> FC {
         let mut cpu = CPU::new();
-        cpu.mem = MemMap::from_file(filename).expect(&format!("File not found: {filename}"));
+        let nesfile = NESFile::from_file(filename).expect(&format!("File not found: {filename}"));
+        cpu.mem = MemMap::from_nesfile(nesfile);
         FC { cpu }
     }
 
