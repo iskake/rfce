@@ -2,6 +2,8 @@ use crate::fc::NESFile;
 
 use super::Memory;
 
+const NROM256_PRG_ROM_SIZE: usize = 32_768;
+
 #[derive(PartialEq, Debug)]
 pub enum MapperType {
     NROM,
@@ -12,7 +14,6 @@ pub struct NROMMapper {
     prg_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
-    nrom256: bool,
     nametable_v_mirror: bool,
     // TODO?
     // ..."PRG RAM: 2 or 4 KiB"
@@ -43,15 +44,15 @@ impl NROMMapper {
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let prg_ram: Vec<u8> = vec![0; prg_ram_size];  // TODO
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
-        let nrom256 = false; // TODO
 
-        NROMMapper { prg_rom, prg_ram, chr_rom, nrom256, nametable_v_mirror}
+        NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
     }
 }
 
 impl Memory for NROMMapper {
     fn read(&self, addr: u16) -> u8 {
         match addr {
+            // TODO: CHR-ROM?
             0x6000..=0x7fff => {
                 // TODO: handle mirroring/no ram
                 self.prg_ram[(addr - 0x6000) as usize]
@@ -60,7 +61,7 @@ impl Memory for NROMMapper {
                 self.prg_rom[(addr - 0x8000) as usize]
             },
             0xc000..=0xffff => {
-                if self.nrom256 {
+                if self.prg_rom.len() == NROM256_PRG_ROM_SIZE {
                     self.prg_rom[(addr - 0x8000) as usize]
                 } else {
                     self.prg_rom[(addr - 0xc000) as usize]
