@@ -89,6 +89,9 @@ impl Inst {
         match self {
             Inst::NOP(_am) => (),
             Inst::ADC(am) => adc(cpu, am, false),
+            Inst::AND(am) => a_fn(cpu, am, |a,m| a & m),
+            Inst::EOR(am) => a_fn(cpu, am, |a,m| a ^ m),
+            Inst::ORA(am) => a_fn(cpu, am, |a,m| a | m),
             Inst::ASL(am) => rot(cpu, am, false, true),
             Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
             Inst::BCS(_) => branch(cpu,  cpu.reg.p.c),
@@ -110,7 +113,6 @@ impl Inst {
             Inst::DEC(_am) => todo!("instruction DEC"),
             Inst::DEX(_am) => todo!("instruction DEX"),
             Inst::DEY(_am) => todo!("instruction DEY"),
-            Inst::EOR(_am) => todo!("instruction EOR"),
             Inst::INC(_am) => todo!("instruction INC"),
             Inst::INX(_am) => todo!("instruction INX"),
             Inst::INY(_am) => todo!("instruction INY"),
@@ -120,7 +122,6 @@ impl Inst {
             Inst::LDX(am) => ld(cpu, am, InstrReg::X),
             Inst::LDY(am) => ld(cpu, am, InstrReg::Y),
             Inst::LSR(am) => rot(cpu, am, false, false),
-            Inst::ORA(_am) => todo!("instruction ORA"),
             Inst::PHA(_am) => todo!("instruction PHA"),
             Inst::PHP(_am) => todo!("instruction PHP"),
             Inst::PLA(_am) => todo!("instruction PLA"),
@@ -147,6 +148,12 @@ impl Inst {
             Inst::ILL(op) => ill(cpu, op),
         }
     }
+}
+
+fn a_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8,u8) -> u8) {
+    cpu.reg.a = f(cpu.reg.a, cpu.read_operand_inc(am));
+    cpu.reg.p.z = cpu.reg.a == 0;
+    cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
 
 enum InstrReg {
