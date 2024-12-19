@@ -84,19 +84,19 @@ impl Inst {
     pub fn run(self, cpu: &mut CPU) -> () {
         match self {
             Inst::NOP(_) => (),
+            Inst::BRK(_am) => todo!("instruction BRK"),
             Inst::ADC(am) => adc(cpu, am, false),
-            Inst::AND(am) => a_fn(cpu, am, |a, m| a & m),
-            Inst::EOR(am) => a_fn(cpu, am, |a, m| a ^ m),
-            Inst::ORA(am) => a_fn(cpu, am, |a, m| a | m),
+            Inst::AND(am) => a_op_fn(cpu, am, |a, m| a & m),
+            Inst::EOR(am) => a_op_fn(cpu, am, |a, m| a ^ m),
+            Inst::ORA(am) => a_op_fn(cpu, am, |a, m| a | m),
             Inst::ASL(am) => rot(cpu, am, false, true),
+            Inst::BIT(am) => bit(cpu, am),
             Inst::BCC(_) => branch(cpu, !cpu.reg.p.c),
             Inst::BCS(_) => branch(cpu, cpu.reg.p.c),
             Inst::BEQ(_) => branch(cpu, cpu.reg.p.z),
-            Inst::BIT(am) => bit(cpu, am),
             Inst::BMI(_) => branch(cpu, cpu.reg.p.n),
             Inst::BNE(_) => branch(cpu, !cpu.reg.p.z),
             Inst::BPL(_) => branch(cpu, !cpu.reg.p.n),
-            Inst::BRK(_am) => todo!("instruction BRK"),
             Inst::BVC(_) => branch(cpu, !cpu.reg.p.v),
             Inst::BVS(_) => branch(cpu, cpu.reg.p.v),
             Inst::CLC(_) => cpu.reg.p.c = false,
@@ -106,12 +106,12 @@ impl Inst {
             Inst::CMP(am) => cmp(cpu, am, InstrReg::A),
             Inst::CPX(am) => cmp(cpu, am, InstrReg::X),
             Inst::CPY(am) => cmp(cpu, am, InstrReg::Y),
-            Inst::DEC(_am) => todo!("instruction DEC"),
-            Inst::DEX(_am) => todo!("instruction DEX"),
-            Inst::DEY(_am) => todo!("instruction DEY"),
-            Inst::INC(_am) => todo!("instruction INC"),
-            Inst::INX(_am) => todo!("instruction INX"),
-            Inst::INY(_am) => todo!("instruction INY"),
+            Inst::DEC(am) => inc(cpu, am, true),
+            Inst::DEX(_) => x_fn(cpu, |x| x - 1),
+            Inst::DEY(_) => y_fn(cpu, |x| x - 1),
+            Inst::INC(am) => inc(cpu, am, false),
+            Inst::INX(_) => x_fn(cpu, |x| x + 1),
+            Inst::INY(_) => y_fn(cpu, |x| x + 1),
             Inst::JMP(_am) => todo!("instruction JMP"),
             Inst::JSR(_am) => todo!("instruction JSR"),
             Inst::LDA(am) => ld(cpu, am, InstrReg::A),
@@ -146,10 +146,22 @@ impl Inst {
     }
 }
 
-fn a_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
+fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
     cpu.reg.a = f(cpu.reg.a, cpu.read_operand_inc(am));
     cpu.reg.p.z = cpu.reg.a == 0;
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
+}
+
+fn x_fn(cpu: &mut CPU, f: fn(u8) -> u8) {
+    cpu.reg.x = f(cpu.reg.x);
+    cpu.reg.p.z = cpu.reg.x == 0;
+    cpu.reg.p.n = cpu.reg.x.test_bit(7)
+}
+
+fn y_fn(cpu: &mut CPU, f: fn(u8) -> u8) {
+    cpu.reg.y = f(cpu.reg.y);
+    cpu.reg.p.z = cpu.reg.y == 0;
+    cpu.reg.p.n = cpu.reg.y.test_bit(7)
 }
 
 fn bit(cpu: &mut CPU, am: AddrMode) -> () {
@@ -160,6 +172,14 @@ fn bit(cpu: &mut CPU, am: AddrMode) -> () {
     cpu.reg.p.z = result == 0;
     cpu.reg.p.v = m.test_bit(6);
     cpu.reg.p.n = m.test_bit(7);
+}
+
+fn inc(cpu: &mut CPU, am: AddrMode, decrement: bool) -> () {
+    let m = cpu.read_operand_cycle(am);
+    let result = if decrement { m + 1 } else { m - 1 };
+    cpu.reg.p.z = result == 0;
+    cpu.reg.p.n = result.test_bit(7);
+    cpu.write_operand_inc(am, result);
 }
 
 enum InstrReg {

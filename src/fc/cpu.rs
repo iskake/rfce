@@ -276,7 +276,7 @@ impl CPU {
 
     /// Write the value `val` to the address $(pc)<<8|(pc+1) +x/y, and increment the pc.
     ///
-    /// Cycles: `3`
+    /// Cycles: `3`(`+1` for x/y)
     pub fn abs_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
         let l = self.pc_read_inc(); // +1 cycle
         let m = self.pc_read_inc(); // +1 cycle
@@ -294,6 +294,26 @@ impl CPU {
         } as u16;
         // ?from wiki: "assumes the worst case of page crossing and always spends 1 extra read cycle"
         self.write_addr_cycle(addr + delta, val); // +1 cycle
+    }
+
+    /// Read the operand in the way specified by the addressing mode, without increasing the pc
+    ///
+    /// Cycles:
+    /// - Acc: `0`
+    /// - Imm: `1`
+    /// - Zp : `2`
+    /// - Abs: `2`
+    pub fn read_operand_cycle(&mut self, am: AddrMode) -> u8 {
+        match am {
+            // TODO: shouldn't it really be the write func that has the fewer cycle things?
+            AddrMode::Acc => self.reg.a,
+            AddrMode::Imm => self.pc_read(),        // +1
+            AddrMode::ZP(ir) => self.zp_read_cycle(ir),   // +2
+            AddrMode::Abs(ir) => self.abs_read_cycle(ir), // +2
+            AddrMode::Ind(_) => panic!("Operand not needed for any such instructions."),
+            AddrMode::Imp => panic!("Implied does not have an operand"),
+            AddrMode::Rel => panic!("Relative operand is only used in branch instructions"),
+        }
     }
 
     /// Read the operand in the way specified by the addressing mode
@@ -320,8 +340,8 @@ impl CPU {
     ///
     /// Cycles:
     /// - Zp : `2`(`+1` for x/y)
-    /// - Abs: `3`
-    /// - Ind: `5`
+    /// - Abs: `3`(`+1` for x/y)
+    /// - Ind: `5` for both x/y
     pub fn write_operand_inc(&mut self, am: AddrMode, val: u8) {
         match am {
             AddrMode::ZP(ir) => self.zp_write_inc(val, ir), // +2(+1 x/y)
