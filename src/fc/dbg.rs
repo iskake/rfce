@@ -3,7 +3,6 @@ use std::time::Instant;
 
 use crate::fc::CPU_FREQ;
 
-use super::CPU;
 use super::FC;
 
 pub struct Debugger {
@@ -12,7 +11,7 @@ pub struct Debugger {
 
 impl Debugger {
     pub fn new() -> Debugger {
-        let fc = FC::from_file("test.bin");
+        let fc = FC::from_file("test1.bin");
         Debugger { fc }
     }
 
