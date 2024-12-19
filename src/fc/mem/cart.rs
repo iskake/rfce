@@ -93,7 +93,7 @@ impl NESFileHeader {
             m0 as u16
         } else {
             let m1 = (self.flags7 & 0xf0) >> 4;
-            let m2 = (self.flags8 & 0xf0) >> 4;
+            let m2 = (self.flags8 & 0x0f);
             ((m2 as u16) << 8) | ((m1 as u16) << 4) | m0 as u16
         }
     }
