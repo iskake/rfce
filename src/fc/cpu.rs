@@ -191,17 +191,17 @@ impl CPU {
 
     /// Read the value at address $00(pc+x/y), and increment the pc.
     /// 
-    /// Cycles: `2` (`+1` if page crossed)
+    /// Cycles: `2` (`+1` if x/y)
     pub fn zp_read_inc(&mut self, ir: IndexRegister) -> u8 {
         let operand = self.pc_read_inc();   // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => self.reg.x,    // +1 cycle
-            IndexRegister::Y => self.reg.y,    // +1 cycle
+            IndexRegister::X => { self.cycle(); self.reg.x },    // +1 cycle
+            IndexRegister::Y => { self.cycle(); self.reg.y },    // +1 cycle
         };
-        if operand as u16 + delta as u16 > 0xff {
-            self.cycle();
-        }
+        // if operand as u16 + delta as u16 > 0xff {
+            // self.cycle();
+        // }
         self.read_addr_cycle(as_address(operand + delta, 0x00)) // +1 cycle
     }
 
