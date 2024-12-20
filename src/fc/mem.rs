@@ -100,7 +100,6 @@ impl MemMap {
         match nesfile.mapper_type() {
             mapper::MapperType::NROM => {
                 let mapper = Box::new(NROMMapper::from_nesfile(nesfile));
-                let ppu_regs = MMIORegisters::new();
                 MemMap {
                     ram: [0; 0x800],
                     mapper,
@@ -116,9 +115,6 @@ impl MemMap {
                 for i in 0..buf.len() {
                     data[i] = buf[i];
                 }
-                let ppu_regs = MMIORegisters::new();
-                // let data: [u8; 0x8000] = buf.try_into()
-                //     .unwrap_or_else(|v: Vec<u8>| panic!("Length of file is invalid: {} (expected {})", v.len(), 0x8000));
                 MemMap {
                     ram: [0; 0x800],
                     mapper: data,

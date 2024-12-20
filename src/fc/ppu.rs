@@ -4,6 +4,12 @@ const OAM_SIZE: usize = 64;
 const SPRITE_SIZE: usize = 4;
 const PATTERN_TABLE_SIZE: usize = 0x1000;
 
+const FRAME_DURATION_EVEN: usize = 341 * 262;
+const FRAME_DURATION_ODD:  usize = FRAME_DURATION_EVEN - 1;
+
+const PICTURE_WIDTH:  usize = 256;
+const PICTURE_HEIGHT: usize = 240;
+
 const ADDRESS_PPUCTRL:   u16 = 0x2000;
 const ADDRESS_PPUMASK:   u16 = 0x2001;
 const ADDRESS_PPUSTATUS: u16 = 0x2002;
@@ -19,6 +25,7 @@ pub struct PPU {
     // pub chr: Box<dyn Mapper>,
     pub oam: [u8; OAM_SIZE * SPRITE_SIZE],
     cycles: u64,
+    odd_frame: bool,
 }
 
 impl PPU {
@@ -28,6 +35,7 @@ impl PPU {
             // chr: Box::new([0; PATTERN_TABLE_SIZE * 2].to_vec()),
             oam: [0; OAM_SIZE * SPRITE_SIZE],
             cycles: 0,
+            odd_frame: false, //?
         }
     }
 
@@ -36,6 +44,7 @@ impl PPU {
     }
 
     pub fn init(&mut self) -> () {
+        self.odd_frame = true; //?
         // Once again, this is purely based on the value of the Mesen debugger after RESET
         self.cycles = 25;
     }
