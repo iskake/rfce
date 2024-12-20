@@ -127,11 +127,16 @@ impl CPU {
         self.ppu.cycle(&self.mem);
     }
 
-    fn mem_read(&self, addr: u16) -> u8 {
+    fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
             0x2000..=0x3fff => self.ppu.mmio.read((addr % 8) + 0x2000),
             _ => self.mem.read(addr),
         }
+    }
+
+    fn mem_read_no_mmio(&self, addr: u16) -> u8 {
+        assert!(addr >= 0x4000);
+        self.mem.read(addr)
     }
 
     fn mem_write(&mut self, addr: u16, val: u8) -> () {
@@ -141,11 +146,11 @@ impl CPU {
         };
     }
 
-    /// Read the value at the address `addr` without any cycles
+    /// Read the value at the address `addr` without any cycles (including in the PPU).
     ///
     /// Cycles: `0`
     pub fn read_addr_nocycle(&mut self, addr: u16) -> u8 {
-        self.mem_read(addr)
+        self.mem_read_no_mmio(addr)
     }
 
     /// Read the value at the address `addr`
@@ -164,11 +169,11 @@ impl CPU {
         self.mem_write(addr, val);
     }
 
-    /// Read the value pointe to by the pc without any cycles.
+    /// Read the value pointe to by the pc without any cycles (including in the PPU).
     ///
     /// Cycles: `0`
     pub fn pc_read_nocycle(&self) -> u8 {
-        self.mem_read(self.reg.pc)
+        self.mem_read_no_mmio(self.reg.pc)
     }
 
     /// Read the value pointe to by the pc.
