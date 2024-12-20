@@ -51,6 +51,7 @@ impl std::fmt::Display for AddrMode {
 #[derive(Clone,Copy,Debug)]
 #[rustfmt::skip]
 pub enum Inst { 
+    // TODO: undefined opcodes
     ADC(AddrMode), AND(AddrMode), ASL(AddrMode), BCC(AddrMode), BCS(AddrMode), BEQ(AddrMode), BIT(AddrMode),
     BMI(AddrMode), BNE(AddrMode), BPL(AddrMode), BRK(AddrMode), BVC(AddrMode), BVS(AddrMode), CLC(AddrMode),
     CLD(AddrMode), CLI(AddrMode), CLV(AddrMode), CMP(AddrMode), CPX(AddrMode), CPY(AddrMode), DEC(AddrMode),
@@ -59,7 +60,7 @@ pub enum Inst {
     PHA(AddrMode), PHP(AddrMode), PLA(AddrMode), PLP(AddrMode), ROL(AddrMode), ROR(AddrMode), RTI(AddrMode),
     RTS(AddrMode), SBC(AddrMode), SEC(AddrMode), SED(AddrMode), SEI(AddrMode), STA(AddrMode), STX(AddrMode),
     STY(AddrMode), TAX(AddrMode), TAY(AddrMode), TSX(AddrMode), TXA(AddrMode), TXS(AddrMode), TYA(AddrMode),
-    ILL(u8), STP(AddrMode),
+    ILL(u8),
 }
 
 impl std::fmt::Display for Inst {
@@ -122,7 +123,6 @@ impl std::fmt::Display for Inst {
             TXS(am) => write!(f, "TXS{am}"),
             TYA(am) => write!(f, "TYA{am}"),
             ILL(x) => write!(f, "ILL ${x}"),
-            STP(am) => todo!(),
         }
     }
 }
@@ -230,8 +230,6 @@ impl Inst {
             Inst::TYA(_a) => set_a(cpu, cpu.reg.y),
             Inst::TSX(_a) => cpu.reg.x = cpu.reg.sp,
             Inst::TXS(_a) => cpu.reg.sp = cpu.reg.x,
-            // Extra:
-            Inst::STP(_a) => todo!("instruction STP"),
             Inst::ILL(op) => ill(cpu, op),
         }
     }
