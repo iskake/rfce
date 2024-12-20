@@ -105,7 +105,7 @@ impl CPU {
         println!("  p: {:08b}", p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
-        println!("  (ppu):  {}", self.ppu.cycles());
+        println!("  (ppu) cycles: {}, scanlines: {}", self.ppu.cycles(), self.ppu.scanlines());
 
         let inst = self.fetch_next_inst_nocycle();
         let operand_u8 = self.mem_read_no_mmio(self.reg.pc + 1);
@@ -136,7 +136,7 @@ impl CPU {
     /// Cycles: `1`
     pub fn cycle(&mut self) -> () {
         self.cycles += 1;
-        self.ppu.cycle(&self.mem);
+        self.ppu.cycle(&mut self.mem);
     }
 
     fn mem_read(&mut self, addr: u16) -> u8 {
@@ -534,5 +534,9 @@ impl CPU {
         } else {
             println!("took {} cycles", cycles_after - cycles_before);
         }
+    }
+
+    pub fn pc(&self) -> u16 {
+        self.reg.pc
     }
 }
