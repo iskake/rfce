@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::time::Instant;
 
+use crate::bits;
 use crate::fc::CPU_FREQ;
 
 use super::FC;
@@ -85,25 +86,25 @@ impl Debugger {
                         "b" => {    // Add breakpoint
                             if parts.len() <= 1 {
                                 println!("No address provided!");
-                                println!("usage: b address");
+                                println!("Usage: b address");
                             } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
-                                println!("Address must start with `$` or `0x`!");
-                                println!("usage: b address");
-                            } else if let Ok(addr) = u16::from_str_radix(&parts[1].replace("$", "").replace("0x", ""), 16) {
+                                println!("Address be prefixed with `$` or `0x`!");
+                                println!("Usage: b address");
+                            } else if let Ok(addr) = bits::parse_hex(parts[1]) {
                                 self.breakpoints.push(Breakpoint::Address(addr));
                             } else {
                                 println!("Could not parse provided address!");
-                                println!("usage: b address");
+                                println!("Usage: b address");
                             }
                         },
                         "d" => {    // Delete breakpoint
                             if parts.len() <= 1 {
                                 println!("No address provided!");
-                                println!("usage: d address");
+                                println!("Usage: d address");
                             } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
                                 println!("Address must start with `$` or `0x`!");
-                                println!("usage: d address");
-                            } else if let Ok(addr) = u16::from_str_radix(&parts[1].replace("$", "").replace("0x", ""), 16) {
+                                println!("Usage: d address");
+                            } else if let Ok(addr) = bits::parse_hex(parts[1]) {
                                 let breakpoint = Breakpoint::Address(addr);
 
                                 if let Some(index) = self.breakpoints.iter().position(|x| *x == breakpoint) {
@@ -113,7 +114,7 @@ impl Debugger {
                                 }
                             } else {
                                 println!("Could not parse provided address!");
-                                println!("usage: d address");
+                                println!("Usage: d address");
                             }
                         },
                         "list" => {
