@@ -3,7 +3,7 @@
 
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{self, Error, Read},
 };
 
 use crate::{bits::Bitwise, fc::mem::mapper::MapperType};
@@ -16,30 +16,28 @@ pub struct NESFile {
 }
 
 impl NESFile {
-    pub fn from_file(filename: &str) -> Result<NESFile, io::Error> {
+    pub fn from_file(filename: &str) -> Result<NESFile, Error> {
         let mut f = File::open(filename)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
 
-        Ok(NESFile::from_vec(buf))
+        NESFile::from_vec(buf)
     }
 
-    pub fn from_vec(mut bytes: Vec<u8>) -> NESFile {
+    pub fn from_vec(mut bytes: Vec<u8>) -> Result<NESFile, Error> {
         if bytes.as_slice()[0..4] == NES_FILE_IDENTIFIER {
-            println!("  Correct identifier :D");
-
             let data = bytes.split_off(16);
             // println!("{}", bytes.len());
             let header = NESFileHeader::from_slice(&bytes.as_slice()[4..16]);
 
-            println!("NES2.0 header? {}", header.is_nes20_format());
-            NESFile {
+            println!("NES2.0 header: {}", header.is_nes20_format());
+
+            Ok(NESFile {
                 header: header,
                 data: data,
-            }
+            })
         } else {
-            // TODO: actually handle this
-            panic!("File does not have the correct format (identifier corrupted/missing)")
+            Err(Error::new(io::ErrorKind::InvalidData, "file identifier is corrupted"))
         }
     }
 

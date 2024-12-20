@@ -1,3 +1,5 @@
+use std::io::Error;
+
 use mem::MemMap;
 
 use crate::fc::cpu::*;
@@ -26,23 +28,24 @@ impl FC {
         FC { cpu: CPU::new(MemMap::empty(), PPU::new()) }
     }
 
-    pub fn from_file(filename: &str) -> FC {
-        let nesfile = NESFile::from_file(filename).expect(&format!("File not found: {filename}"));
+    pub fn from_file(filename: &str) -> Result<FC, Error> {
+        let nesfile = NESFile::from_file(filename)?;
         let mem = MemMap::from_nesfile(&nesfile);
 
         let ppu = PPU::new();
         let cpu = CPU::new(mem, ppu);
-        FC { cpu }
+        Ok(FC { cpu })
     }
 
-    fn load_rom(&mut self, filename: &str) -> () {
-        let nesfile = NESFile::from_file(filename).expect(&format!("File not found: {filename}"));
+    fn load_rom(&mut self, filename: &str) -> Result<(), Error> {
+        let nesfile = NESFile::from_file(filename)?;
         let mem = MemMap::from_nesfile(&nesfile);
 
         let ppu = PPU::new();
         let cpu = CPU::new(mem, ppu);
         // self.ppu = ppu;
         self.cpu = cpu;
+        Ok(())
     }
 
     fn init(&mut self) -> () {

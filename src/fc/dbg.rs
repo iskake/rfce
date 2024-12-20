@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self, Error, Write};
 use std::time::Instant;
 
 use crate::bits;
@@ -35,9 +35,10 @@ impl Debugger {
         }
     }
 
-    pub fn load_file(&mut self, filename: &str) -> () {
-        self.fc.load_rom(filename);
+    pub fn load_file(&mut self, filename: &str) -> Result<(), Error> {
+        self.fc.load_rom(filename)?;
         self.fc.init();
+        Ok(())
     }
 
     pub fn run(&mut self) -> () {

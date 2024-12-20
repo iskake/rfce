@@ -1,8 +1,6 @@
 use cart::NESFile;
 use mapper::{Mapper, NROMMapper};
 
-use super::MMIORegisters;
-
 pub mod cart;
 pub mod mapper;
 
