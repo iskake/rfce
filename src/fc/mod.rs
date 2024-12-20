@@ -2,10 +2,12 @@ use mem::MemMap;
 
 use crate::fc::cpu::*;
 use crate::fc::mem::cart::*;
+use crate::fc::ppu::*;
 
 pub mod cpu;
 pub mod dbg;
 pub mod mem;
+pub mod ppu;
 
 pub enum ConsoleType {
     Famicom,
@@ -16,25 +18,30 @@ pub enum ConsoleType {
 
 pub struct FC {
     cpu: CPU,
+    // ppu: PPU,    // ? move PPU here instead of storing in CPU??
 }
 
 impl FC {
     pub fn new() -> FC {
-        FC { cpu: CPU::new() }
+        FC { cpu: CPU::new(MemMap::empty(), PPU::new()) }
     }
 
     pub fn from_file(filename: &str) -> FC {
-        let mut cpu = CPU::new();
         let nesfile = NESFile::from_file(filename).expect(&format!("File not found: {filename}"));
-        cpu.mem = MemMap::from_nesfile(nesfile);
+        let mem = MemMap::from_nesfile(&nesfile);
+
+        let ppu = PPU::new();
+        let cpu = CPU::new(mem, ppu);
         FC { cpu }
     }
 
     fn load_rom(&mut self, filename: &str) -> () {
-        // TODO? change this so you don't have to create yet another cpu? or is this way better?
-        let mut cpu = CPU::new();
         let nesfile = NESFile::from_file(filename).expect(&format!("File not found: {filename}"));
-        cpu.mem = MemMap::from_nesfile(nesfile);
+        let mem = MemMap::from_nesfile(&nesfile);
+
+        let ppu = PPU::new();
+        let cpu = CPU::new(mem, ppu);
+        // self.ppu = ppu;
         self.cpu = cpu;
     }
 

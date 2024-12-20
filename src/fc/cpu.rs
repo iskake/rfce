@@ -3,6 +3,8 @@ use inst::*;
 use crate::bits::{as_address, Bitwise};
 use crate::fc::mem::*;
 
+use super::PPU;
+
 pub mod inst;
 
 pub const CPU_FREQ: u64 = 1_789_773;
@@ -48,7 +50,7 @@ impl Into<u8> for ProcFlags {
             | (self.i as u8) << 2
             | (self.d as u8) << 3
             | (self.b as u8) << 4
-            | 0b0010_0000
+            // | 0b0010_0000
             | (self.v as u8) << 6
             | (self.n as u8) << 7
     }
@@ -79,14 +81,16 @@ impl Registers {
 pub struct CPU {
     reg: Registers,
     pub mem: MemMap, // TODO?: move this somewhere else and have a reference?
+    ppu: PPU,
     cycles: u64,
 }
 
 impl CPU {
-    pub fn new() -> CPU {
+    pub fn new(mem: MemMap, ppu: PPU) -> CPU {
         CPU {
             reg: Registers::new(),
-            mem: MemMap::empty(),
+            mem,
+            ppu,
             cycles: 0,
         }
     }
@@ -101,16 +105,18 @@ impl CPU {
         println!("  p: {:08b}", p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
+        println!("  (ppu):  {}", self.ppu.cycles());
         println!("-> {:?}", self.fetch_next_inst_nocycle())
     }
 
     pub fn init(&mut self) -> () {
+        self.ppu.init();
         let l = self.read_addr_nocycle(RESET_VECTOR);
         let m = self.read_addr_nocycle(RESET_VECTOR + 1);
         let addr = as_address(l, m);
         self.reg.pc = addr;
         // This is purely based on the value of the Mesen debugger after RESET
-        self.cycles += 7;
+        self.cycles = 7;
     }
 
     /// "Cycle" the cpu.
@@ -118,13 +124,28 @@ impl CPU {
     /// Cycles: `1`
     pub fn cycle(&mut self) -> () {
         self.cycles += 1;
+        self.ppu.cycle(&self.mem);
+    }
+
+    fn mem_read(&self, addr: u16) -> u8 {
+        match addr {
+            0x2000..=0x3fff => self.ppu.mmio.read((addr % 8) + 0x2000),
+            _ => self.mem.read(addr),
+        }
+    }
+
+    fn mem_write(&mut self, addr: u16, val: u8) -> () {
+        match addr {
+            0x2000..=0x3fff => self.ppu.mmio.write((addr % 8) + 0x2000, val),
+            _ => self.mem.write(addr, val),
+        };
     }
 
     /// Read the value at the address `addr` without any cycles
     ///
     /// Cycles: `0`
     pub fn read_addr_nocycle(&mut self, addr: u16) -> u8 {
-        self.mem.read(addr)
+        self.mem_read(addr)
     }
 
     /// Read the value at the address `addr`
@@ -132,7 +153,7 @@ impl CPU {
     /// Cycles: `1`
     pub fn read_addr_cycle(&mut self, addr: u16) -> u8 {
         self.cycle();
-        self.mem.read(addr)
+        self.mem_read(addr)
     }
 
     /// Write the value `val` to the address `addr`
@@ -140,14 +161,14 @@ impl CPU {
     /// Cycles: `1`
     pub fn write_addr_cycle(&mut self, addr: u16, val: u8) -> () {
         self.cycle();
-        self.mem.write(addr, val);
+        self.mem_write(addr, val);
     }
 
     /// Read the value pointe to by the pc without any cycles.
     ///
     /// Cycles: `0`
     pub fn pc_read_nocycle(&self) -> u8 {
-        self.mem.read(self.reg.pc)
+        self.mem_read(self.reg.pc)
     }
 
     /// Read the value pointe to by the pc.
@@ -155,7 +176,7 @@ impl CPU {
     /// Cycles: `1`
     pub fn pc_read(&mut self) -> u8 {
         self.cycle();
-        self.mem.read(self.reg.pc)
+        self.mem_read(self.reg.pc)
     }
 
     /// Increment the pc.
@@ -250,10 +271,11 @@ impl CPU {
     /// Cycles: `2`
     pub fn abs_read_cycle(&mut self, ir: IndexRegister) -> u8 {
         let l = self.pc_read(); // +1 cycle
-                                // "m: u8 = self.pc_read(pc+1);"
+
+        // "m: u8 = self.pc_read(pc+1);"
         let m = {
             self.cycle();
-            self.mem.read(self.reg.pc + 1)
+            self.mem_read(self.reg.pc + 1)
         }; // +1 cycle
 
         let addr = as_address(l, m);

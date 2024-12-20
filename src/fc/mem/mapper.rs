@@ -10,6 +10,11 @@ pub enum MapperType {
     UNKNOWN(u16),
 }
 
+pub trait Mapper : Memory {
+    fn read_chr(&self, addr: u16) -> u8;
+    fn write_chr(&mut self, addr: u16, val: u8) -> ();
+}
+
 pub struct NROMMapper {
     prg_rom: Vec<u8>,
     prg_ram: Vec<u8>,
@@ -22,7 +27,7 @@ pub struct NROMMapper {
 }
 
 impl NROMMapper {
-    pub fn from_nesfile(nesfile: NESFile) -> NROMMapper {
+    pub fn from_nesfile(nesfile: &NESFile) -> NROMMapper {
         assert!(nesfile.mapper_type() == MapperType::NROM);
         let prg_rom_size = nesfile.header.prg_rom_size();
         let chr_rom_size = nesfile.header.chr_rom_size();
@@ -79,5 +84,15 @@ impl Memory for NROMMapper {
             },
             _ => (),
         }
+    }
+}
+
+impl Mapper for NROMMapper {
+    fn read_chr(&self, addr: u16) -> u8 {
+        self.chr_rom[addr as usize]
+    }
+
+    fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
+        ()  // TODO?
     }
 }
