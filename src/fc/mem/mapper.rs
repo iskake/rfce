@@ -36,14 +36,17 @@ impl NROMMapper {
         let nametable_v_mirror = nesfile.header.nametable_layout();
 
         if nesfile.header.trainer() {
-            todo!()
+            unimplemented!("NROM trainer handling");
         }
 
         println!("NROM with:");
         println!("  PRG-ROM SIZE: {}", prg_rom_size);
         println!("  PRG-RAM SIZE: {}", prg_ram_size);
         println!("  CHR-ROM SIZE: {}", chr_rom_size);
-        println!("  Nametable vert mirroring: {}", nametable_v_mirror);
+        println!("  Nametable mirroring: {} ({} arrangement)",
+            if nametable_v_mirror { "vertical" } else { "horizontal" },
+            if nametable_v_mirror { "horizontal" } else { "vertical" }
+        );
         println!();
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();

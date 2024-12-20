@@ -106,7 +106,19 @@ impl CPU {
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
         println!("  (ppu):  {}", self.ppu.cycles());
-        println!("-> {:?}", self.fetch_next_inst_nocycle())
+
+        let inst = self.fetch_next_inst_nocycle();
+        let operand_u8 = self.mem_read_no_mmio(self.reg.pc + 1);
+        let operand_u16 = as_address(operand_u8, self.mem_read_no_mmio(self.reg.pc + 2));
+        let operand_rel = (self.reg.pc + 2).wrapping_add_signed((operand_u8 as i8).into());
+
+        println!(
+            "-> {}",
+            inst.to_string()
+                .replace("_b", &format!("{operand_u8:02x}"))
+                .replace("_w", &format!("{operand_u16:04x}"))
+                .replace("_r", &format!("{operand_rel:04x}"))
+        )
     }
 
     pub fn init(&mut self) -> () {

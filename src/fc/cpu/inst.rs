@@ -22,6 +22,32 @@ pub enum AddrMode {
                         // (Indirect),Y
 }
 
+impl std::fmt::Display for AddrMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Imp => write!(f, ""),
+            Acc => write!(f, ""),
+            Imm => write!(f, " #$_b"),
+            ZP(ir)  => write!(f, " $_b{}", match ir {
+                N => "",
+                X => ",x",
+                Y => ",y",
+            }),
+            Abs(ir) => write!(f, " $_w{}", match ir {
+                N => "",
+                X => ",x",
+                Y => ",y",
+            }),
+            Ind(ir) => match ir {
+                N => write!(f, " $_w"),
+                X => write!(f, " ($_w,x)"),
+                Y => write!(f, " ($_w),y"),
+            },
+            Rel => write!(f, " $_r"),
+        }
+    }
+}
+
 #[derive(Clone,Copy,Debug)]
 #[rustfmt::skip]
 pub enum Inst { 
@@ -34,6 +60,71 @@ pub enum Inst {
     RTS(AddrMode), SBC(AddrMode), SEC(AddrMode), SED(AddrMode), SEI(AddrMode), STA(AddrMode), STX(AddrMode),
     STY(AddrMode), TAX(AddrMode), TAY(AddrMode), TSX(AddrMode), TXA(AddrMode), TXS(AddrMode), TYA(AddrMode),
     ILL(u8), STP(AddrMode),
+}
+
+impl std::fmt::Display for Inst {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADC(am) => write!(f, "ADC{am}"),
+            AND(am) => write!(f, "AND{am}"),
+            ASL(am) => write!(f, "ASL{am}"),
+            BCC(am) => write!(f, "BCC{am}"),
+            BCS(am) => write!(f, "BCS{am}"),
+            BEQ(am) => write!(f, "BEQ{am}"),
+            BIT(am) => write!(f, "BIT{am}"),
+            BMI(am) => write!(f, "BMI{am}"),
+            BNE(am) => write!(f, "BNE{am}"),
+            BPL(am) => write!(f, "BPL{am}"),
+            BRK(am) => write!(f, "BRK{am}"),
+            BVC(am) => write!(f, "BVC{am}"),
+            BVS(am) => write!(f, "BVS{am}"),
+            CLC(am) => write!(f, "CLC{am}"),
+            CLD(am) => write!(f, "CLD{am}"),
+            CLI(am) => write!(f, "CLI{am}"),
+            CLV(am) => write!(f, "CLV{am}"),
+            CMP(am) => write!(f, "CMP{am}"),
+            CPX(am) => write!(f, "CPX{am}"),
+            CPY(am) => write!(f, "CPY{am}"),
+            DEC(am) => write!(f, "DEC{am}"),
+            DEX(am) => write!(f, "DEX{am}"),
+            DEY(am) => write!(f, "DEY{am}"),
+            EOR(am) => write!(f, "EOR{am}"),
+            INC(am) => write!(f, "INC{am}"),
+            INX(am) => write!(f, "INX{am}"),
+            INY(am) => write!(f, "INY{am}"),
+            JMP(am) => write!(f, "JMP{am}"),
+            JSR(am) => write!(f, "JSR{am}"),
+            LDA(am) => write!(f, "LDA{am}"),
+            LDX(am) => write!(f, "LDX{am}"),
+            LDY(am) => write!(f, "LDY{am}"),
+            LSR(am) => write!(f, "LSR{am}"),
+            NOP(am) => write!(f, "NOP{am}"),
+            ORA(am) => write!(f, "ORA{am}"),
+            PHA(am) => write!(f, "PHA{am}"),
+            PHP(am) => write!(f, "PHP{am}"),
+            PLA(am) => write!(f, "PLA{am}"),
+            PLP(am) => write!(f, "PLP{am}"),
+            ROL(am) => write!(f, "ROL{am}"),
+            ROR(am) => write!(f, "ROR{am}"),
+            RTI(am) => write!(f, "RTI{am}"),
+            RTS(am) => write!(f, "RTS{am}"),
+            SBC(am) => write!(f, "SBC{am}"),
+            SEC(am) => write!(f, "SEC{am}"),
+            SED(am) => write!(f, "SED{am}"),
+            SEI(am) => write!(f, "SEI{am}"),
+            STA(am) => write!(f, "STA{am}"),
+            STX(am) => write!(f, "STX{am}"),
+            STY(am) => write!(f, "STY{am}"),
+            TAX(am) => write!(f, "TAX{am}"),
+            TAY(am) => write!(f, "TAY{am}"),
+            TSX(am) => write!(f, "TSX{am}"),
+            TXA(am) => write!(f, "TXA{am}"),
+            TXS(am) => write!(f, "TXS{am}"),
+            TYA(am) => write!(f, "TYA{am}"),
+            ILL(x) => write!(f, "ILL ${x}"),
+            STP(am) => todo!(),
+        }
+    }
 }
 
 use AddrMode::*;

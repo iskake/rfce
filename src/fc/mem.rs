@@ -97,7 +97,6 @@ impl MemMap {
     }
 
     pub fn from_nesfile(nesfile: &NESFile) -> MemMap {
-        println!("{:?}", nesfile.mapper_type());
         match nesfile.mapper_type() {
             mapper::MapperType::NROM => {
                 let mapper = Box::new(NROMMapper::from_nesfile(nesfile));
