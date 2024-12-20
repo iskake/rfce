@@ -55,7 +55,7 @@ pub const INST_TABLE: [Inst; 256] = [
     BVC(Rel   ), EOR(Ind(Y)), ILL(0x52  ), ILL(0x53  ), ILL(0x54  ), EOR(ZP(X) ), LSR(ZP(X) ), ILL(0x57  ), 
     CLI(Imp   ), EOR(Abs(Y)), ILL(0x5a  ), ILL(0x5b  ), ILL(0x5c  ), EOR(Abs(X)), LSR(Abs(X)), ILL(0x5f  ), 
     RTS(Imp   ), ADC(Ind(X)), ILL(0x62  ), ILL(0x63  ), ILL(0x64  ), ADC(ZP(N) ), ROR(ZP(N) ), ILL(0x67  ), 
-    PLA(Imp   ), ADC(Imm   ), ROR(Acc   ), ILL(0x6b  ), JMP(Imp   ), ADC(Abs(N)), ROR(Abs(N)), ILL(0x6f  ), 
+    PLA(Imp   ), ADC(Imm   ), ROR(Acc   ), ILL(0x6b  ), JMP(Ind(N)), ADC(Abs(N)), ROR(Abs(N)), ILL(0x6f  ), 
     BVS(Rel   ), ADC(Ind(Y)), ILL(0x72  ), ILL(0x73  ), ILL(0x74  ), ADC(ZP(X) ), ROR(ZP(X) ), ILL(0x77  ), 
     SEI(Imp   ), ADC(Abs(Y)), ILL(0x7a  ), ILL(0x7b  ), ILL(0x7c  ), ADC(Abs(X)), ROR(Abs(X)), ILL(0x7f  ), 
     ILL(0x80  ), STA(Ind(X)), ILL(0x82  ), ILL(0x83  ), STY(ZP(N) ), STA(ZP(N) ), STX(ZP(N) ), ILL(0x87  ), 
