@@ -1,6 +1,6 @@
 use inst::*;
 
-use crate::bits::{as_address, Bitwise};
+use crate::bits::{as_address, Addr, Bitwise};
 use crate::fc::mem::*;
 
 use super::PPU;
@@ -218,7 +218,7 @@ impl CPU {
     fn pc_offset_cycle(&mut self, offset: i8) -> () {
         let old_pc = self.reg.pc;
         let new_pc = old_pc.wrapping_add_signed(offset.into());
-        if new_pc & 0xff00 != old_pc & 0xff00 {
+        if new_pc.msb() != old_pc.msb() {
             self.cycle(); // +1 cycle
         }
         self.reg.pc = new_pc;

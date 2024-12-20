@@ -1,4 +1,4 @@
-use crate::bits::{as_address, Bitwise};
+use crate::bits::{as_address, Addr, Bitwise};
 
 use super::{CPU, IRQ_VECTOR};
 
@@ -395,8 +395,8 @@ fn jmp(cpu: &mut CPU, am: AddrMode, jsr: bool) -> () {
 
                 // as a side effect of using nocycle, pc is already "pc-1"
                 // (which is what _should_ be pushed)
-                cpu.push(((cpu.reg.pc) >> 8) as u8); // +2
-                cpu.push(((cpu.reg.pc) & 0xff) as u8); // +2
+                cpu.push(cpu.reg.pc.msb()); // +2
+                cpu.push(cpu.reg.pc.lsb()); // +2
                 val
             };
             let addr = as_address(l, m);
@@ -427,8 +427,8 @@ fn rts(cpu: &mut CPU, rti: bool) -> () {
 
 fn brk(cpu: &mut CPU) -> () {
     // TODO: interrupts
-    cpu.push(((cpu.reg.pc + 1) >> 8) as u8); // +2
-    cpu.push(((cpu.reg.pc + 1) & 0xff) as u8); // +2
+    cpu.push((cpu.reg.pc + 1).msb()); // +2
+    cpu.push((cpu.reg.pc + 1).lsb()); // +2
     cpu.push(cpu.reg.p.into()); // +2
     // cpu.reg.p.b = true; // ?
 

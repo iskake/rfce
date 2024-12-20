@@ -22,11 +22,11 @@ pub trait Addr: Bitwise {
 }
 
 impl Addr for u16 {
-    fn lsb(self) -> u8 {
-        ((self & 0xff00) >> 8) as u8
+    fn msb(self) -> u8 {
+        (self >> 8) as u8
     }
 
-    fn msb(self) -> u8 {
+    fn lsb(self) -> u8 {
         (self & 0xff) as u8
     }
 }
