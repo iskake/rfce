@@ -207,7 +207,13 @@ impl Debugger {
                     Err(e) => Err(String::from(format!("Could not load the file: {e}"))),
                 }
             }
-            "q" | "quit" | "exit" => exit(0),
+            "q" | "quit" | "exit" => {
+                if !self.ed_mode {
+                    exit(0)
+                } else {
+                    Err(String::new())
+                }
+            }
             "?" => {
                 // Surely the most useful feature of this debugger
                 self.ed_mode = true;
