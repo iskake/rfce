@@ -136,9 +136,22 @@ impl PPU {
             _ => unreachable!(),
         }
     }
+
+    pub fn reset(&self) -> () {
+        // TODO
+        ()
+    }
+    
+    pub fn read_mmio(&mut self, addr: u16) -> u8 {
+        self.mmio.read(addr)
+    }
+    
+    pub fn write_mmio(&mut self, addr: u16, val: u8) -> () {
+        self.mmio.write(addr, val);
+    }
 }
 
-pub struct MMIORegisters {
+struct MMIORegisters {
     io_bus: u8,
     ppuctrl: u8,
     ppumask: u8,
@@ -202,13 +215,14 @@ impl MMIORegisters {
     }
 
     pub fn write_ppuctrl(&mut self, val: u8) -> () {
-        // TODO: check for cycles < 29658 before allowing writes
+        // TODO: check for cycles < 29658 before allowing writes?
         self.ppuctrl = val;
         println!("Wrote ${val:02x} to PPUCTRL")
     }
 
     pub fn write_ppumask(&mut self, val: u8) {
-        todo!("write_ppumask")
+        self.ppuctrl = val;
+        println!("Wrote ${val:02x} to PPUMASK")
     }
 
     pub fn read_ppustatus(&mut self) -> u8 {

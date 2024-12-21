@@ -21,11 +21,15 @@ pub enum ConsoleType {
 pub struct FC {
     cpu: CPU,
     // ppu: PPU,    // ? move PPU here instead of storing in CPU??
+    cart: Option<NESFile>,
 }
 
 impl FC {
     pub fn new() -> FC {
-        FC { cpu: CPU::new(MemMap::empty(), PPU::new()) }
+        FC {
+            cpu: CPU::new(MemMap::empty(), PPU::new()),
+            cart: None
+        }
     }
 
     pub fn from_file(filename: &str) -> Result<FC, Error> {
@@ -34,18 +38,37 @@ impl FC {
 
         let ppu = PPU::new();
         let cpu = CPU::new(mem, ppu);
-        Ok(FC { cpu })
+        Ok(FC { cpu, cart: Some(nesfile) })
     }
 
+    /// Reads and loads the specified ROM, including initialization.
     fn load_rom(&mut self, filename: &str) -> Result<(), Error> {
-        let nesfile = NESFile::from_file(filename)?;
-        let mem = MemMap::from_nesfile(&nesfile);
+        self.cart = Some(NESFile::from_file(filename)?);
 
-        let ppu = PPU::new();
-        let cpu = CPU::new(mem, ppu);
-        // self.ppu = ppu;
-        self.cpu = cpu;
-        Ok(())
+        self.reset_hard()
+    }
+
+    /// "Hard reset" / power cycle the emulator.
+    /// This is equivalent to loading the already loaded ROM from a file again.
+    fn reset_hard(&mut self) -> Result<(), Error> {
+        match &self.cart {
+            None => Err(Error::new(std::io::ErrorKind::NotFound, "no ROM loaded")),
+            Some(nesfile) => {
+                let mem = MemMap::from_nesfile(&nesfile);
+
+                let ppu = PPU::new();
+                let cpu = CPU::new(mem, ppu);
+                // self.ppu = ppu;
+                self.cpu = cpu;
+                self.init();
+                Ok(())
+            }
+        }
+    }
+
+    /// "Soft reset" the emulator.
+    fn reset(&mut self) -> () {
+        self.cpu.reset();
     }
 
     fn init(&mut self) -> () {

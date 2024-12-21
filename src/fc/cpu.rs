@@ -73,7 +73,7 @@ impl Registers {
             y: 0x00,
             p: 0b0000_0100.into(),
             sp: 0xfd,
-            pc: 0xfffc,
+            pc: RESET_VECTOR,
         }
     }
 }
@@ -131,6 +131,15 @@ impl CPU {
         self.cycles = 7;
     }
 
+    pub fn reset(&mut self) -> () {
+        self.ppu.reset();
+        self.reg.pc = RESET_VECTOR;
+        self.reg.sp -= 3;
+        self.reg.p.i = true;
+
+        self.init();
+    }
+
     /// "Cycle" the cpu.
     ///
     /// Cycles: `1`
@@ -141,7 +150,7 @@ impl CPU {
 
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x2000..=0x3fff => self.ppu.mmio.read((addr % 8) + 0x2000),
+            0x2000..=0x3fff => self.ppu.read_mmio((addr % 8) + 0x2000),
             _ => self.mem.read(addr),
         }
     }
@@ -153,7 +162,7 @@ impl CPU {
 
     fn mem_write(&mut self, addr: u16, val: u8) -> () {
         match addr {
-            0x2000..=0x3fff => self.ppu.mmio.write((addr % 8) + 0x2000, val),
+            0x2000..=0x3fff => self.ppu.write_mmio((addr % 8) + 0x2000, val),
             _ => self.mem.write(addr, val),
         };
     }
