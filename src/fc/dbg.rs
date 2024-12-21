@@ -70,7 +70,7 @@ impl Debugger {
     }
 
     fn handle_input(&mut self, input: &mut String) -> Result<(), String> {
-        if *input == "\n" {
+        if *input == "\n" || *input == "\u{1b}[A" {
             *input = self.last_input.clone();
         } else {
             self.last_input = input.clone();
@@ -78,8 +78,8 @@ impl Debugger {
 
         let parts: Vec<&str> = input.trim().split(" ").collect();
 
-        match parts[0] {
-            "c" => {
+        match parts[..] {
+            ["c"] => {
                 loop {
                     // Continue running
                     self.fc.cpu.fetch_and_run();
@@ -92,143 +92,149 @@ impl Debugger {
                 }
                 Ok(())
             }
-            "s" => {
+            ["s"] => {
                 // Step cpu forward 1 instruction
                 self.fc.cpu.fetch_and_run_dbg();
                 self.fc.cpu.print_state();
                 Ok(())
             }
-            "b" => {
-                // Add breakpoint
-                if parts.len() <= 1 {
-                    Err(String::from(
-                        "No address provided!\n\
-                         Usage: b address",
-                    ))
-                } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
-                    Err(String::from(
-                        "Address must be prefixed with `$` or `0x`!\n\
-                         Usage: b address",
-                    ))
-                } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                    self.try_add_breakpoint(Breakpoint::Address(addr))
-                } else {
-                    Err(String::from(
-                        "Could not parse provided address!\n\
-                         Usage: b address",
-                    ))
-                }
+            ["b" | "break", break_type, val] => {
+                self.handle_breakpoint_add(&parts, break_type, val)
             }
-            "bs" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
-
-                // Add a breakpoint for a scanline
-                if parts.len() <= 1 {
-                    Err(String::from(
-                        "No scanline specified!\n\
-                         Usage: bs scanline",
-                    ))
-                } else if let Ok(scanline) = parts[1].parse() {
-                    self.try_add_breakpoint(Breakpoint::Scanline(scanline))
-                } else {
-                    Err(String::from(
-                        "Failed to parse scanline number!\n\
-                         Usage: bs scanline",
-                    ))
-                }
+            ["b" | "break", ..] => Err(String::from("Usage: break [address|scanline] <value>")),
+            ["d" | "delete", break_type, val] => {
+                self.handle_breakpoint_del(break_type, val)
             }
-            "d" => {
-                // Delete breakpoint
-                if parts.len() <= 1 {
-                    Err(String::from(
-                        "No address provided!\n\
-                         Usage: b address",
-                    ))
-                } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
-                    Err(String::from(
-                        "Address must be prefixed with `$` or `0x`!\n\
-                         Usage: b address",
-                    ))
-                } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                    self.try_remove_breakpoint(Breakpoint::Address(addr))
-                } else {
-                    Err(String::from(
-                        "Could not parse provided address!\n\
-                         Usage: b address",
-                    ))
-                }
-            }
-            "ds" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
-
-                // Delete a breakpoint for a scanline
-                if parts.len() <= 1 {
-                    Err(String::from(
-                        "No scanline specified!\n\
-                         Usage: ds scanline",
-                    ))
-                } else if let Ok(scanline) = parts[1].parse() {
-                    self.try_remove_breakpoint(Breakpoint::Scanline(scanline))
-                } else {
-                    Err(String::from(
-                        "Failed to parse scanline number!\n\
-                         Usage: ds scanline",
-                    ))
-                }
-            }
-            "list" => {
+            ["d" | "delete", ..] => Err(String::from("Usage: delete [address|scanline] <value>")),
+            ["l" | "list"] => {
                 // List breakpoints
                 self.breakpoints.iter().for_each(|x| println!("{x}"));
                 Ok(())
             }
-            "p" | "print" => {
+            ["p" | "print"] => {
                 // Print cpu info
                 self.fc.cpu.print_state();
                 Ok(())
             }
-            "r" | "reload" | "run" => {
+            ["r" | "hr", "reload" | "run"] | ["hard", "reset"] => {
                 // ? Would results in error if we allow debugger when no rom loaded
                 let _ = self.fc.reset_hard();
                 Ok(())
             }
-            "sr" | "reset" => {
+            ["sr" | "reset"] | ["soft", "reset"] => {
+                // Soft reset
                 self.fc.reset();
                 Ok(())
             }
-            "load" => {
+            ["load", filename] => {
                 if parts.len() <= 1 {
                     return Err(String::from(
                         "No file provided!\n\
                          Usage: load <file.nes>",
                     ));
                 }
-                match self.fc.load_rom(parts[1]).into() {
+                match self.fc.load_rom(filename).into() {
                     Ok(_a) => Ok(_a),
                     Err(e) => Err(String::from(format!("Could not load the file: {e}"))),
                 }
             }
-            "q" | "quit" | "exit" => {
+            ["load", ..] => Err(String::from("Usage: load <filen.nes>")),
+            ["q" | "quit" | "exit"] => {
                 if !self.ed_mode {
                     exit(0)
                 } else {
                     Err(String::new())
                 }
             }
-            "?" => {
+            ["?"] => {
                 // Surely the most useful feature of this debugger
                 self.ed_mode = true;
                 Err("?".to_owned())
             }
-            "the_standard" => {
+            ["the", "standard"] => {
                 if self.ed_mode {
                     // No actual reason to do this
                     self.ed_mode = false;
                     Ok(())
                 } else {
-                    Err(String::from(format!("Unknown command: {}", parts[0])))
+                    Err(String::from(format!("Unknown command: `{:?}`", parts)))
                 }
             }
-            _ => Err(String::from(format!("Unknown command: {}", parts[0]))),
+            _ => Err(String::from(format!("Unknown command: `{:?}`", parts))),
+        }
+    }
+
+    fn handle_breakpoint_add(&mut self, parts: &Vec<&str>, break_type: &str, val: &str) -> Result<(), String> {
+        // Add breakpoint
+        match break_type {
+            "a" | "addr" | "address" => {
+                if !val.starts_with("$") && !val.starts_with("0x") {
+                    Err(String::from(
+                        "Address must be prefixed with `$` or `0x`!\n\
+                         Usage: break address $<address>",
+                    ))
+                } else if let Ok(addr) = bits::parse_hex(val) {
+                    self.try_add_breakpoint(Breakpoint::Address(addr))
+                } else {
+                    Err(String::from(
+                        "Could not parse provided address!\n\
+                         Usage: break address $<address>",
+                    ))
+                }
+            },
+            "s" | "scan" | "line" | "scanline" => {
+                println!("INFO: breakpoints for scanlines currently do not work");
+                // Add a breakpoint for a scanline
+                if let Ok(scanline) = val.parse() {
+                    self.try_add_breakpoint(Breakpoint::Scanline(scanline))
+                } else {
+                    Err(String::from(
+                        "Failed to parse scanline number!\n\
+                         Usage: break scanline <scanline number>",
+                    ))
+                }
+            },
+            _ => Err(String::from(
+                format!("Invalid breakpoint type & number combo: `{break_type} {val}`\n\
+                         Usage: break [address|scanline] <value>")
+            ))
+        }
+    }
+
+    fn handle_breakpoint_del(&mut self, break_type: &str, val: &str) -> Result<(), String> {
+        // Add breakpoint
+        match break_type {
+            "a" | "addr" | "address" => {
+                if !val.starts_with("$") && !val.starts_with("0x") {
+                    Err(String::from(
+                        "Address must be prefixed with `$` or `0x`!\n\
+                         Usage: delete address $<address>",
+                    ))
+                } else if let Ok(addr) = bits::parse_hex(val) {
+                    self.try_remove_breakpoint(Breakpoint::Address(addr))
+                } else {
+                    Err(String::from(
+                        "Could not parse provided address!\n\
+                         Usage: delete address $<address>",
+                    ))
+                }
+            },
+            "s" | "scan" | "line" | "scanline" => {
+                println!("INFO: breakpoints for scanlines currently do not work");
+                // Add a breakpoint for a scanline
+                if let Ok(scanline) = val.parse() {
+                    self.try_remove_breakpoint(Breakpoint::Scanline(scanline))
+                } else {
+                    Err(String::from(
+                        "Failed to parse scanline number!\n\
+                         Usage: delete scanline <scanline number>",
+                    ))
+                }
+            },
+            _ => Err(String::from(
+                format!("Invalid number: {val}\n\
+                         Usage: delete [address|scanline] <value>")
+            ))
         }
     }
 
