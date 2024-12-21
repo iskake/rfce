@@ -1,12 +1,12 @@
+use std::collections::HashSet;
 use std::io::{self, Error, Write};
-use std::time::Instant;
+use std::process::exit;
 
 use crate::bits;
-use crate::fc::CPU_FREQ;
 
 use super::FC;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Hash)]
 enum Breakpoint {
     Address(u16),
 }
@@ -22,7 +22,8 @@ impl std::fmt::Display for Breakpoint {
 pub struct Debugger {
     fc: FC,
     last_input: String,
-    breakpoints: Vec<Breakpoint>,
+    breakpoints: HashSet<Breakpoint>,
+    ed_mode: bool, // :)
 }
 
 impl Debugger {
@@ -31,7 +32,8 @@ impl Debugger {
         Debugger {
             fc,
             last_input: String::from(""),
-            breakpoints: Vec::new(),
+            breakpoints: HashSet::new(),
+            ed_mode: false,
         }
     }
 
@@ -47,85 +49,127 @@ impl Debugger {
         println!("Started debugger");
         self.fc.cpu.print_state();
         loop {
-            print!("> ");
+            print!("{}", if !self.ed_mode { "> " } else { "" });
             io::stdout().flush().unwrap();
             input.clear();
 
             let stdin = io::stdin();
-            let mut start = Instant::now();
             match stdin.read_line(&mut input) {
-                Ok(_) => {
-                    if input == "\n" {
-                        input = self.last_input.clone();
-                    } else {
-                        self.last_input = input.clone();
-                    }
+                Ok(_) => match self.handle_input(&mut input) {
+                    Ok(()) => (),
+                    Err(e) => println!("{}", if !self.ed_mode { e } else { "?".to_owned() }),
+                },
+                Err(err) => println!("An error occurred: {}", err),
+            };
+        }
+    }
 
-                    let parts: Vec<&str> = input.trim().split(" ").collect();
-                    // println!("{}", parts[0]);
-                    let mut i: u64 = 0;
-                    match parts[0] {
-                        "c" => loop {   // Continue running
-                            self.fc.cpu.fetch_and_run();
-                            i += 1;
-                            if i % (CPU_FREQ * 10) == 0 {
-                                println!("{}, took: {}", i, start.elapsed().as_secs_f32());
-                                start = Instant::now();
-                            }
+    fn handle_input(&mut self, input: &mut String) -> Result<(), String> {
+        if *input == "\n" {
+            *input = self.last_input.clone();
+        } else {
+            self.last_input = input.clone();
+        }
 
-                            let addr_break = Breakpoint::Address(self.fc.cpu.pc());
-                            if self.breakpoints.contains(&addr_break) {
-                                println!("Hit breakpoint {}", addr_break);
-                                self.fc.cpu.print_state();
-                                break;
-                            }
-                        },
-                        "s" => {    // Step cpu forward 1 instruction
-                            self.fc.cpu.fetch_and_run_dbg();
-                            self.fc.cpu.print_state();
-                        },
-                        "b" => {    // Add breakpoint
-                            if parts.len() <= 1 {
-                                println!("No address provided!");
-                                println!("Usage: b address");
-                            } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
-                                println!("Address be prefixed with `$` or `0x`!");
-                                println!("Usage: b address");
-                            } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                                self.breakpoints.push(Breakpoint::Address(addr));
-                            } else {
-                                println!("Could not parse provided address!");
-                                println!("Usage: b address");
-                            }
-                        },
-                        "d" => {    // Delete breakpoint
-                            if parts.len() <= 1 {
-                                println!("No address provided!");
-                                println!("Usage: d address");
-                            } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
-                                println!("Address must start with `$` or `0x`!");
-                                println!("Usage: d address");
-                            } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                                let breakpoint = Breakpoint::Address(addr);
+        let parts: Vec<&str> = input.trim().split(" ").collect();
 
-                                if let Some(index) = self.breakpoints.iter().position(|x| *x == breakpoint) {
-                                    self.breakpoints.remove(index);
-                                } else {
-                                    println!("Breakpoint does not exist: ${addr:04x}");
-                                }
-                            } else {
-                                println!("Could not parse provided address!");
-                                println!("Usage: d address");
-                            }
-                        },
-                        "list" => {
-                            self.breakpoints.iter().for_each(|x| println!("{x}"));
-                        }
-                        _ => println!("Unknown command: {}", parts[0]),
+        match parts[0] {
+            "c" => {
+                loop {
+                    // Continue running
+                    self.fc.cpu.fetch_and_run();
+                    let addr_break = Breakpoint::Address(self.fc.cpu.pc());
+                    if self.breakpoints.contains(&addr_break) {
+                        println!("Hit breakpoint {}", addr_break);
+                        self.fc.cpu.print_state();
+                        break;
                     }
                 }
-                Err(err) => println!("An error occurred: {}", err),
+                Ok(())
             }
+            "s" => {
+                // Step cpu forward 1 instruction
+                self.fc.cpu.fetch_and_run_dbg();
+                self.fc.cpu.print_state();
+                Ok(())
+            }
+            "b" => {
+                // Add breakpoint
+                if parts.len() <= 1 {
+                    Err(String::from(
+                        "No address provided!\n\
+                         Usage: b address",
+                    ))
+                } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
+                    Err(String::from(
+                        "Address must be prefixed with `$` or `0x`!\n\
+                         Usage: b address",
+                    ))
+                } else if let Ok(addr) = bits::parse_hex(parts[1]) {
+                    let breakpoint = Breakpoint::Address(addr);
+
+                    if !self.breakpoints.contains(&breakpoint) {
+                        self.breakpoints.insert(breakpoint);
+                        Ok(())
+                    } else {
+                        Err(String::from("Breakpoint already exists: ${addr:04x}"))
+                    }
+                } else {
+                    Err(String::from(
+                        "Could not parse provided address!\n\
+                         Usage: b address",
+                    ))
+                }
+            }
+            "d" => {
+                // Delete breakpoint
+                if parts.len() <= 1 {
+                    Err(String::from(
+                        "No address provided!\n\
+                         Usage: b address",
+                    ))
+                } else if !parts[1].starts_with("$") && !parts[1].starts_with("0x") {
+                    Err(String::from(
+                        "Address must be prefixed with `$` or `0x`!\n\
+                         Usage: b address",
+                    ))
+                } else if let Ok(addr) = bits::parse_hex(parts[1]) {
+                    let breakpoint = Breakpoint::Address(addr);
+
+                    if self.breakpoints.contains(&breakpoint) {
+                        self.breakpoints.remove(&breakpoint);
+                        Ok(())
+                    } else {
+                        Err(String::from("Breakpoint does not exist: ${addr:04x}"))
+                    }
+                } else {
+                    Err(String::from(
+                        "Could not parse provided address!\n\
+                         Usage: b address",
+                    ))
+                }
+            }
+            "list" => {
+                // List breakpoints
+                self.breakpoints.iter().for_each(|x| println!("{x}"));
+                Ok(())
+            }
+            "q" | "quit" | "exit" => exit(0),
+            "?" => {
+                // Surely the most useful feature of this debugger
+                self.ed_mode = true;
+                Err("?".to_owned())
+            }
+            "the_standard" => {
+                if self.ed_mode {
+                    // No actual reason to do this
+                    self.ed_mode = false;
+                    Ok(())
+                } else {
+                    Err(String::from(format!("Unknown command: {}", parts[0])))
+                }
+            }
+            _ => Err(String::from(format!("Unknown command: {}", parts[0]))),
         }
     }
 }
