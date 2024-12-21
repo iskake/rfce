@@ -102,7 +102,7 @@ impl CPU {
             self.reg.a, self.reg.x, self.reg.y
         );
         let p: u8 = self.reg.p.into();
-        println!("  p: {:08b}", p);
+        println!("  p: {:02x} ({:08b})", p, p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
         println!("  cycles: {}", self.cycles);
         println!("  (ppu) cycles: {}, scanlines: {}", self.ppu.cycles(), self.ppu.scanlines());
@@ -118,7 +118,7 @@ impl CPU {
                 .replace("_b", &format!("{operand_u8:02x}"))
                 .replace("_w", &format!("{operand_u16:04x}"))
                 .replace("_r", &format!("{operand_rel:04x}"))
-        )
+        );
     }
 
     pub fn init(&mut self) -> () {
