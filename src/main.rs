@@ -5,7 +5,7 @@ use crate::fc::dbg::Debugger;
 pub mod bits;
 pub mod fc;
 
-fn main() -> Result<(), Error>{
+fn main() -> Result<(), Error> {
     let args: Vec<String> = env::args().collect();
 
     if let Some(filename) = args.get(1) {
