@@ -10,47 +10,7 @@ use crate::{bits::Bitwise, fc::mem::mapper::MapperType};
 
 const NES_FILE_IDENTIFIER: [u8; 4] = [b'N', b'E', b'S', 0x1a];
 
-pub struct NESFile {
-    pub header: NESFileHeader, // ? change this to private?
-    pub data: Vec<u8>,
-}
-
-impl NESFile {
-    pub fn from_file(filename: &str) -> Result<NESFile, Error> {
-        let mut f = File::open(filename)?;
-        let mut buf = Vec::new();
-        f.read_to_end(&mut buf)?;
-
-        NESFile::from_vec(buf)
-    }
-
-    pub fn from_vec(mut bytes: Vec<u8>) -> Result<NESFile, Error> {
-        if bytes.as_slice()[0..4] == NES_FILE_IDENTIFIER {
-            let data = bytes.split_off(16);
-            // println!("{}", bytes.len());
-            let header = NESFileHeader::from_slice(&bytes.as_slice()[4..16]);
-
-            println!("NES2.0 header: {}", header.is_nes20_format());
-
-            Ok(NESFile {
-                header: header,
-                data: data,
-            })
-        } else {
-            Err(Error::new(io::ErrorKind::InvalidData, "file identifier is corrupted"))
-        }
-    }
-
-    pub fn mapper_type(&self) -> MapperType {
-        match self.header.mapper_number() {
-            0 => MapperType::NROM,
-            i => MapperType::UNKNOWN(i),
-        }
-    }
-}
-
-
-pub struct NESFileHeader {
+struct NESFileHeader {
     prg_rom_size_lsb: u8,
     chr_rom_size_lsb: u8,
     flags6: u8,
@@ -84,10 +44,47 @@ impl NESFileHeader {
             flags15: bytes[11],
         }
     }
+}
+
+pub struct NESFile {
+    header: NESFileHeader,
+    pub data: Vec<u8>,
+}
+
+impl NESFile {
+    pub fn from_file(filename: &str) -> Result<NESFile, Error> {
+        let mut f = File::open(filename)?;
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf)?;
+
+        NESFile::from_vec(buf)
+    }
+
+    pub fn from_vec(mut bytes: Vec<u8>) -> Result<NESFile, Error> {
+        if bytes[0..4] == NES_FILE_IDENTIFIER {
+            let data = bytes.split_off(16);
+            // println!("{}", bytes.len());
+            let header = NESFileHeader::from_slice(&bytes[4..16]);
+
+            Ok(NESFile {
+                header: header,
+                data: data,
+            })
+        } else {
+            Err(Error::new(io::ErrorKind::InvalidData, "file identifier is corrupted"))
+        }
+    }
+
+    pub fn mapper_type(&self) -> MapperType {
+        match self.mapper_number() {
+            0 => MapperType::NROM,
+            i => MapperType::UNKNOWN(i),
+        }
+    }
 
     /// Whether the header has the NES2.0 format or not
     pub fn is_nes20_format(&self) -> bool {
-        self.flags7 & 0x0c == 0x08
+        self.header.flags7 & 0x0c == 0x08
     }
 
     // TODO? move these functions to NESFile instead?
@@ -97,7 +94,7 @@ impl NESFileHeader {
     /// - `0`: vertical arrangement (horizontal mirror) / mapper controlled
     /// - `1`: horizontal arrangement (vertical mirror)
     pub fn nametable_layout(&self) -> bool {
-        self.flags6.test_bit(0)
+        self.header.flags6.test_bit(0)
     }
 
     /// Whether a "battery"/non-volatile memory is present according to byte 6 of the header
@@ -105,7 +102,7 @@ impl NESFileHeader {
     /// - `0`: not present
     /// - `1`: present
     pub fn battery(&self) -> bool {
-        self.flags6.test_bit(1)
+        self.header.flags6.test_bit(1)
     }
 
     /// Whether a 512-bit trainer is present according to byte 6 of the header
@@ -113,7 +110,7 @@ impl NESFileHeader {
     /// - `0`: not present
     /// - `1`: "present between header and PRG-ROM data"
     pub fn trainer(&self) -> bool {
-        self.flags6.test_bit(2)
+        self.header.flags6.test_bit(2)
     }
 
     /// Whether a 512-bit trainer is present according to byte 6 of the header
@@ -121,17 +118,17 @@ impl NESFileHeader {
     /// - `0`: not present
     /// - `1`: "present between header and PRG-ROM data"
     pub fn alt_nametable_layout(&self) -> bool {
-        self.flags6.test_bit(3)
+        self.header.flags6.test_bit(3)
     }
 
     /// Get the mapper number stored in byte 6of the header (and bytes 7,8 when using the NES2.0 format)
     pub fn mapper_number(&self) -> u16 {
-        let m0 = (self.flags6 & 0xf0) >> 4;
+        let m0 = (self.header.flags6 & 0xf0) >> 4;
         if !self.is_nes20_format() {
             m0 as u16
         } else {
-            let m1 = (self.flags7 & 0xf0) >> 4;
-            let m2 = self.flags8 & 0x0f;
+            let m1 = (self.header.flags7 & 0xf0) >> 4;
+            let m2 = self.header.flags8 & 0x0f;
             ((m2 as u16) << 8) | ((m1 as u16) << 4) | m0 as u16
         }
     }
@@ -139,7 +136,7 @@ impl NESFileHeader {
     /// Get the submapper number stored in byte 7 of the header (NES2.0 only)
     pub fn submapper_number(&self) -> u8 {
         if self.is_nes20_format() {
-            (self.flags7 & 0xf0) >> 4
+            (self.header.flags7 & 0xf0) >> 4
         } else {
             0
         }
@@ -147,10 +144,10 @@ impl NESFileHeader {
 
     /// Get the 'type' of console according to byte 7 of the header (and byte 13 if console type is 3)
     pub fn console_type(&self) -> u8 {
-        let val = self.flags7 & 0b11;
+        let val = self.header.flags7 & 0b11;
         if self.is_nes20_format() && val == 3 {
             // Extended console type
-            ((self.flags13 & 0xf) << 2) | val
+            ((self.header.flags13 & 0xf) << 2) | val
         } else {
             // Non-extended console type
             val
@@ -160,17 +157,17 @@ impl NESFileHeader {
     /// Get the size of PRG-ROM in bytes
     pub fn prg_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
-            let val = self.prg_rom_size_lsb as usize;
+            let val = self.header.prg_rom_size_lsb as usize;
             val * 0x4000
         } else {
-            if (self.flags9 & 0xf) == 0xf {
+            if (self.header.flags9 & 0xf) == 0xf {
                 // Exponent-multiplier notation
-                let multiplier = (self.chr_rom_size_lsb & 0b11) as usize;
-                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
+                let multiplier = (self.header.chr_rom_size_lsb & 0b11) as usize;
+                let exponent = ((self.header.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
                 // TODO: check for overflow?
                 (1 << exponent) * (multiplier * 2 + 1)
             } else {
-                let val = ((self.flags9 as usize & 0xf) << 4) | self.prg_rom_size_lsb as usize;
+                let val = ((self.header.flags9 as usize & 0xf) << 4) | self.header.prg_rom_size_lsb as usize;
                 val * 0x4000
             }
         }
@@ -179,18 +176,18 @@ impl NESFileHeader {
     /// Get the size of CHR-ROM in bytes
     pub fn chr_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
-            let val = self.chr_rom_size_lsb as usize;
+            let val = self.header.chr_rom_size_lsb as usize;
             val
         } else {
-            if (self.flags9 & 0xf0) == 0xf0 {
+            if (self.header.flags9 & 0xf0) == 0xf0 {
                 // Exponent-multiplier notation
-                let multiplier = (self.chr_rom_size_lsb & 0b11) as usize;
-                let exponent = ((self.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
+                let multiplier = (self.header.chr_rom_size_lsb & 0b11) as usize;
+                let exponent = ((self.header.chr_rom_size_lsb & 0b1111_1100) >> 2) as usize;
                 // TODO: check for overflow?
                 (1 << exponent) * (multiplier * 2 + 1)
             } else {
                 // Normal
-                let val = ((self.flags9 as usize & 0xf0) << 4) | self.chr_rom_size_lsb as usize;
+                let val = ((self.header.flags9 as usize & 0xf0) << 4) | self.header.chr_rom_size_lsb as usize;
                 val * 0x2000
             }
         }
@@ -199,7 +196,7 @@ impl NESFileHeader {
     /// Get the PRG-RAM (volatile) size in bytes (NES2.0 only)
     pub fn prg_ram_size(&self) -> usize {
         if self.is_nes20_format() {
-            let shift_count = self.flags10 & 0x0f;
+            let shift_count = self.header.flags10 & 0x0f;
             if shift_count == 0 {
                 0
             } else {
@@ -213,7 +210,7 @@ impl NESFileHeader {
     /// Get the PRG-NVRAM/EEPROM (non-volatile) size in bytes (NES2.0 only)
     pub fn prg_nvram_eeprom_size(&self) -> usize {
         if self.is_nes20_format() {
-            let shift_count = (self.flags10 & 0xf0) >> 4;
+            let shift_count = (self.header.flags10 & 0xf0) >> 4;
             if shift_count == 0 {
                 0
             } else {
@@ -227,7 +224,7 @@ impl NESFileHeader {
     /// Get the CHR-RAM (volatile) size in bytes (NES2.0 only)
     pub fn chr_ram_size(&self) -> usize {
         if self.is_nes20_format() {
-            let shift_count = self.flags11 & 0x0f;
+            let shift_count = self.header.flags11 & 0x0f;
             if shift_count == 0 {
                 0
             } else {
@@ -241,7 +238,7 @@ impl NESFileHeader {
     /// Get the CHR-NVRAM (non-volatile) size in bytes (NES2.0 only)
     pub fn chr_nvram_size(&self) -> usize {
         if self.is_nes20_format() {
-            let shift_count = (self.flags11 & 0xf0) >> 4;
+            let shift_count = (self.header.flags11 & 0xf0) >> 4;
             if shift_count == 0 {
                 0
             } else {
@@ -260,7 +257,7 @@ impl NESFileHeader {
     /// - 3: UA6538 ("Dendy")
     pub fn cpu_ppu_timing_mode(&self) -> u8 {
         if self.is_nes20_format() {
-            self.flags12 & 0b11
+            self.header.flags12 & 0b11
         } else {
             0
         }
@@ -271,7 +268,7 @@ impl NESFileHeader {
     /// Get the number of miscellaneous ROMs present (NES2.0 only)
     pub fn misc_roms_count(&self) -> u8 {
         if self.is_nes20_format() {
-            self.flags14 & 0b11
+            self.header.flags14 & 0b11
         } else {
             0
         }
@@ -280,7 +277,7 @@ impl NESFileHeader {
     /// Get the default expansion device (NES2.0 only)
     pub fn default_expansion_device(&self) -> u8 {
         if self.is_nes20_format() {
-            self.flags15 & 0x3f
+            self.header.flags15 & 0x3f
         } else {
             0
         }

@@ -29,13 +29,13 @@ pub struct NROMMapper {
 impl NROMMapper {
     pub fn from_nesfile(nesfile: &NESFile) -> NROMMapper {
         assert!(nesfile.mapper_type() == MapperType::NROM);
-        let prg_rom_size = nesfile.header.prg_rom_size();
-        let chr_rom_size = nesfile.header.chr_rom_size();
-        let prg_ram_size = nesfile.header.prg_ram_size();
+        let prg_rom_size = nesfile.prg_rom_size();
+        let chr_rom_size = nesfile.chr_rom_size();
+        let prg_ram_size = nesfile.prg_ram_size();
         // TODO: chr ram?
-        let nametable_v_mirror = nesfile.header.nametable_layout();
+        let nametable_v_mirror = nesfile.nametable_layout();
 
-        if nesfile.header.trainer() {
+        if nesfile.trainer() {
             unimplemented!("NROM trainer handling");
         }
 
