@@ -9,12 +9,18 @@ use super::FC;
 #[derive(PartialEq, Eq, Hash)]
 enum Breakpoint {
     Address(u16),
+    CPUCycle(u64),  // TODO
+    PPUCycle(u64),  // TODO
+    Scanline(u16),  // TODO
 }
 
 impl std::fmt::Display for Breakpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Breakpoint::Address(addr) => write!(f, "at address ${addr:04x}"),
+            Breakpoint::CPUCycle(cycle) => write!(f, "at CPU cycle {cycle}"),
+            Breakpoint::PPUCycle(cycle) => write!(f, "at PPU cycle {cycle}"),
+            Breakpoint::Scanline(scanline) => write!(f, "at scanline {scanline} hit"),
         }
     }
 }
@@ -39,7 +45,6 @@ impl Debugger {
 
     pub fn load_file(&mut self, filename: &str) -> Result<(), Error> {
         self.fc.load_rom(filename)?;
-        self.fc.init();
         Ok(())
     }
 
@@ -49,7 +54,7 @@ impl Debugger {
         println!("Started debugger");
         self.fc.cpu.print_state();
         loop {
-            print!("{}", if !self.ed_mode { "> " } else { "" });
+            print!("{}", if !self.ed_mode { "(dbg) " } else { "" });
             io::stdout().flush().unwrap();
             input.clear();
 
@@ -106,18 +111,29 @@ impl Debugger {
                          Usage: b address",
                     ))
                 } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                    let breakpoint = Breakpoint::Address(addr);
-
-                    if !self.breakpoints.contains(&breakpoint) {
-                        self.breakpoints.insert(breakpoint);
-                        Ok(())
-                    } else {
-                        Err(String::from("Breakpoint already exists: ${addr:04x}"))
-                    }
+                    self.try_add_breakpoint(Breakpoint::Address(addr))
                 } else {
                     Err(String::from(
                         "Could not parse provided address!\n\
                          Usage: b address",
+                    ))
+                }
+            }
+            "bs" => {
+                println!("INFO: breakpoints for scanlines currently do not work");
+
+                // Add a breakpoint for a scanline
+                if parts.len() <= 1 {
+                    Err(String::from(
+                        "No scanline specified!\n\
+                         Usage: bs scanline",
+                    ))
+                } else if let Ok(scanline) = parts[1].parse() {
+                    self.try_add_breakpoint(Breakpoint::Scanline(scanline))
+                } else {
+                    Err(String::from(
+                        "Failed to parse scanline number!\n\
+                         Usage: bs scanline",
                     ))
                 }
             }
@@ -134,14 +150,7 @@ impl Debugger {
                          Usage: b address",
                     ))
                 } else if let Ok(addr) = bits::parse_hex(parts[1]) {
-                    let breakpoint = Breakpoint::Address(addr);
-
-                    if self.breakpoints.contains(&breakpoint) {
-                        self.breakpoints.remove(&breakpoint);
-                        Ok(())
-                    } else {
-                        Err(String::from("Breakpoint does not exist: ${addr:04x}"))
-                    }
+                    self.try_remove_breakpoint(Breakpoint::Address(addr))
                 } else {
                     Err(String::from(
                         "Could not parse provided address!\n\
@@ -149,10 +158,54 @@ impl Debugger {
                     ))
                 }
             }
+            "ds" => {
+                println!("INFO: breakpoints for scanlines currently do not work");
+
+                // Delete a breakpoint for a scanline
+                if parts.len() <= 1 {
+                    Err(String::from(
+                        "No scanline specified!\n\
+                         Usage: ds scanline",
+                    ))
+                } else if let Ok(scanline) = parts[1].parse() {
+                    self.try_remove_breakpoint(Breakpoint::Scanline(scanline))
+                } else {
+                    Err(String::from(
+                        "Failed to parse scanline number!\n\
+                         Usage: ds scanline",
+                    ))
+                }
+            }
             "list" => {
                 // List breakpoints
                 self.breakpoints.iter().for_each(|x| println!("{x}"));
                 Ok(())
+            }
+            "p" | "print" => {
+                // Print cpu info
+                self.fc.cpu.print_state();
+                Ok(())
+            }
+            "r" | "reload" | "run" => {
+                // ? Would results in error if we allow debugger when no rom loaded
+                let _ = self.fc.reset_hard();
+                Ok(())
+            }
+            "sr" | "reset" => {
+                self.fc.reset();
+                Ok(())
+            }
+            "load" => {
+                if parts.len() <= 1 {
+                    return Err(String::from(
+                        "No file provided!\n\
+                         Usage: load <file.nes>",
+                    ));
+                }
+                match self.fc.load_rom(parts[1]).into() {
+                    Ok(_a) => Ok(_a),
+                    Err(e) => Err(String::from(format!("Could not load the file: {e}"))),
+                }
             }
             "q" | "quit" | "exit" => exit(0),
             "?" => {
@@ -170,6 +223,24 @@ impl Debugger {
                 }
             }
             _ => Err(String::from(format!("Unknown command: {}", parts[0]))),
+        }
+    }
+
+    fn try_add_breakpoint(&mut self, breakpoint: Breakpoint) -> Result<(), String> {
+        if !self.breakpoints.contains(&breakpoint) {
+            self.breakpoints.insert(breakpoint);
+            Ok(())
+        } else {
+            Err(String::from(format!("Breakpoint already exists: {breakpoint}")))
+        }
+    }
+
+    fn try_remove_breakpoint(&mut self, breakpoint: Breakpoint) -> Result<(), String> {
+        if self.breakpoints.contains(&breakpoint) {
+            self.breakpoints.remove(&breakpoint);
+            Ok(())
+        } else {
+            Err(String::from(format!("Breakpoint does not exist: {breakpoint}")))
         }
     }
 }
