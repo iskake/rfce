@@ -337,7 +337,7 @@ fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
     let result = r - m;
 
     cpu.reg.p.c = r >= m;
-    cpu.reg.p.c = r == m;
+    cpu.reg.p.z = r == m;
     cpu.reg.p.n = result.test_bit(7);
 }
 
