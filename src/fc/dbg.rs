@@ -98,6 +98,9 @@ impl Debugger {
                 self.fc.cpu.print_state();
                 Ok(())
             }
+            ["b" | "break", addr] => {
+                self.handle_breakpoint_add(&parts, "address", addr)
+            }
             ["b" | "break", break_type, val] => {
                 self.handle_breakpoint_add(&parts, break_type, val)
             }
@@ -116,7 +119,7 @@ impl Debugger {
                 self.fc.cpu.print_state();
                 Ok(())
             }
-            ["r" | "hr", "reload" | "run"] | ["hard", "reset"] => {
+            ["r" | "hr" | "reload" | "run"] | ["hard", "reset"] => {
                 // ? Would results in error if we allow debugger when no rom loaded
                 let _ = self.fc.reset_hard();
                 Ok(())
@@ -139,6 +142,9 @@ impl Debugger {
                 }
             }
             ["load", ..] => Err(String::from("Usage: load <filen.nes>")),
+            ["x", mem_type, addr] => self.examine(mem_type, addr),
+            ["x", addr] => self.examine("cpu", addr),
+            ["x", ..] => Err(String::from("Usage: x $<address>")),
             ["q" | "quit" | "exit"] => {
                 if !self.ed_mode {
                     exit(0)
@@ -162,6 +168,55 @@ impl Debugger {
             }
             _ => Err(String::from(format!("Unknown command: `{:?}`", parts))),
         }
+    }
+
+    fn examine(&self, mem_type: &str, addr: &str) -> Result<(), String> {
+        match mem_type {
+            "cpu" => {
+                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let f = |a| self.fc.cpu.read_addr_nocycle(a);
+                self.print_mem_region(from_addr, from_addr + 0x30, f);
+                Ok(())
+            },
+            "ppu" => {
+                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let f = |a| self.fc.cpu.read_addr_ppu(a);
+                self.print_mem_region(from_addr, from_addr + 0x30, f);
+                Ok(())
+            },
+            _ => Err(String::from(format!("Invalid memory type: `{mem_type}`")))
+        }
+    }
+
+    fn try_parse_hex(val: &str) -> Result<u16, String> {
+        if !val.starts_with("$") && !val.starts_with("0x") {
+            Err(String::from("Address must be prefixed with `$` or `0x`"))
+        } else if let Ok(addr) = bits::parse_hex(val) {
+            Ok(addr)
+        } else {
+            Err(String::from("Could not parse the provided address as a 16 bit hex number."))
+        }
+    }
+
+    fn print_mem_region<T: Fn(u16) -> u8>(&self, from: u32, to: u32, f: T) -> () {
+        for i in from..to {
+            if i != from as u32 {
+                if i % 0x10 == 0 {
+                    print!("\n");
+                } else {
+                    print!(" ");
+                }
+            }
+
+            if i % 0x10 == 0 {
+                let addr = i as u16;
+                print!("${addr:04x}:  ");
+            }
+
+            let m = f(i as u16);
+            print!("{m:02x}");
+        }
+        println!();
     }
 
     fn handle_breakpoint_add(&mut self, parts: &Vec<&str>, break_type: &str, val: &str) -> Result<(), String> {
