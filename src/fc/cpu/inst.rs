@@ -271,7 +271,7 @@ fn bit(cpu: &mut CPU, am: AddrMode) -> () {
 
 fn inc(cpu: &mut CPU, am: AddrMode, decrement: bool) -> () {
     let m = cpu.operand_read_cycle(am);
-    let result = if decrement { m + 1 } else { m - 1 };
+    let result = if decrement { m - 1 } else { m + 1 };
     cpu.reg.p.z = result == 0;
     cpu.reg.p.n = result.test_bit(7);
     cpu.operand_write_inc(am, result);
