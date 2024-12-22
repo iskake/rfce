@@ -40,8 +40,8 @@ impl std::fmt::Display for AddrMode {
             }),
             Ind(ir) => match ir {
                 N => write!(f, " $_w"),
-                X => write!(f, " ($_w,x)"),
-                Y => write!(f, " ($_w),y"),
+                X => write!(f, " ($_b,x)"),
+                Y => write!(f, " ($_b),y"),
             },
             Rel => write!(f, " $_r"),
         }
