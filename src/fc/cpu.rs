@@ -419,27 +419,34 @@ impl CPU {
     ///
     /// Cycles: `2`
     pub fn get_indirect(&mut self, addr: u16) -> u16 {
-        let l = self.read_addr_cycle(addr); // +1 cycle
-        let m = self.read_addr_cycle(addr + 1); // +1 cycle
-        as_address(l, m)
+        if addr == 0x00ff {
+            // Wraparound
+            let l = self.read_addr_cycle(0xff); // +1 cycle
+            let m = self.read_addr_cycle(0x00); // +1 cycle
+            as_address(l, m)
+        } else {
+            let l = self.read_addr_cycle(addr); // +1 cycle
+            let m = self.read_addr_cycle(addr + 1); // +1 cycle
+            as_address(l, m)
+        }
     }
 
     /// Read the indirect address in relation to x or y
     ///
     /// Cycles: `5` for x, `4` (`+1` if page crossed) for y
     pub fn ind_read_inc(&mut self, ir: IndexRegister) -> u8 {
-        let pcval = self.pc_read_inc(); // +1 cycle
+        let m = self.pc_read_inc(); // +1 cycle
         match ir {
             IndexRegister::X => {
-                let ptr = as_address(pcval + self.reg.x, 0x00);
-                let addr = self.get_indirect(ptr as u16); // +2 cycles
+                let ptr = as_address(m + self.reg.x, 0x00);
+                let addr = self.get_indirect(ptr); // +2 cycles
                 self.cycle(); //?? +1 cycle extra??
                 self.read_addr_cycle(addr) // +1 cycle
             }
             IndexRegister::Y => {
-                let ptr = as_address(pcval, 0x00);
+                let ptr = as_address(m, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr + delta); // +2 cycles
+                let addr = self.get_indirect(ptr) + delta; // +2 cycles
                 if (ptr & 0xff) + self.reg.y as u16 > 0xff {
                     self.cycle(); // +1 cycle
                 }
