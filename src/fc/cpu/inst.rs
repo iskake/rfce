@@ -344,31 +344,31 @@ fn cmp(cpu: &mut CPU, am: AddrMode, instr_reg: InstrReg) -> () {
 fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
     let shift_fn: fn(u8) -> u8 = if left { |x| x << 1 } else { |x| x >> 1 };
     let pad_amount = if left { 0 } else { 7 };
-    let old_c_bit = if left { 7 } else { 0 };
+    let old_bit = if left { 7 } else { 0 };
 
     let val = match am {
         Acc => {
             let a = cpu.reg.a;
-            cpu.reg.p.c = a.test_bit(old_c_bit);
             let new_val = shift_fn(a) | (if rotate { cpu.reg.p.c as u8 } else { 0 } << pad_amount);
+            cpu.reg.p.c = a.test_bit(old_bit);
             cpu.reg.a = new_val;
             new_val
         }
         ZP(ir) => {
             let val = cpu.zp_read_cycle(ir); // !! +2 cycles !!
-            cpu.reg.p.c = val.test_bit(old_c_bit);
             // cpu.cycle();    // +1 cycle for modify stage
             let new_val =
                 shift_fn(val) | (if rotate { cpu.reg.p.c as u8 } else { 0 } << pad_amount);
+            cpu.reg.p.c = val.test_bit(old_bit);
             cpu.zp_write_inc(new_val, ir); // +2(+1) cycles
             new_val
         }
         Abs(ir) => {
             let val = cpu.abs_read_cycle(ir); // !! +2 cycles !!
-            cpu.reg.p.c = val.test_bit(old_c_bit);
             // cpu.cycle();    // +1 cycle for modify stage
             let new_val =
                 shift_fn(val) | (if rotate { cpu.reg.p.c as u8 } else { 0 } << pad_amount);
+            cpu.reg.p.c = val.test_bit(old_bit);
             cpu.abs_write_inc(new_val, ir); // +3(+1) cycles
             new_val
             // = 5(+1)
