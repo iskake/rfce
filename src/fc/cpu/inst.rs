@@ -416,15 +416,17 @@ fn jmp(cpu: &mut CPU, am: AddrMode, jsr: bool) -> () {
 }
 
 fn rts(cpu: &mut CPU, rti: bool) -> () {
-    if rti {
+    let delta = if rti {
         cpu.reg.p = cpu.pull_noextra().into(); // +1
+        0
     } else {
         cpu.cycle(); // +1
-    }
+        1
+    };
     let l = cpu.pull(); // +3
     let m = cpu.pull_noextra(); // +1
     let addr = as_address(l, m);
-    cpu.reg.pc = addr + 1;
+    cpu.reg.pc = addr + delta;
 }
 
 fn brk(cpu: &mut CPU) -> () {
@@ -440,6 +442,8 @@ fn brk(cpu: &mut CPU) -> () {
     cpu.reg.pc = addr;
 }
 
-fn ill(_: &mut CPU, opcode: u8) -> () {
+fn ill(cpu: &mut CPU, opcode: u8) -> () {
+    println!("just hit illegal instruction... goodbye world");
+    cpu.print_state();
     panic!("ILLEGAL INSTRUCTION ${:02x}", opcode);
 }
