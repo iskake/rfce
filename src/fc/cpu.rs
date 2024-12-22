@@ -57,12 +57,15 @@ impl Into<u8> for ProcFlags {
 }
 
 pub struct Registers {
-    pub a: u8,        // Accumulator
-    pub x: u8,        // X index register
-    pub y: u8,        // Y index register
-    pub p: ProcFlags, // Processor status
-    pub sp: u8,       // Stack pointer
-    pub pc: u16,      // Program counter
+    a: u8,        // Accumulator
+    x: u8,        // X index register
+    y: u8,        // Y index register
+    p: ProcFlags, // Processor status
+    sp: u8,       // Stack pointer
+    pc: u16,      // Program counter
+    irq: bool,    // Interrupt request flag
+    nmi: bool,    // Non-maskable interrupt flag
+    dma: bool,    // OAM DMA 'flag'
 }
 
 impl Registers {
@@ -74,6 +77,9 @@ impl Registers {
             p: 0b0000_0100.into(),
             sp: 0xfd,
             pc: RESET_VECTOR,
+            irq: false,
+            nmi: false,
+            dma: false,
         }
     }
 }
@@ -104,12 +110,16 @@ impl CPU {
         let p: u8 = self.reg.p.into();
         println!("  p: {:02x} ({:08b})", p, p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
-        println!("  cycles: {}", self.cycles);
-        println!("  (ppu) cycles: {}, scanlines: {}", self.ppu.cycles(), self.ppu.scanlines());
+        println!(
+            "  cycles: {}, nmi: {}, irq: {}",
+            self.cycles, self.reg.nmi, self.reg.irq
+        );
+        // println!("  (ppu) cycles: {}, scanlines: {}", self.ppu.cycles(), self.ppu.scanlines());
+        self.ppu.print_state();
 
         let inst = self.fetch_next_inst_nocycle();
-        let operand_u8 = self.mem_read_no_mmio(self.reg.pc + 1);
-        let operand_u16 = as_address(operand_u8, self.mem_read_no_mmio(self.reg.pc + 2));
+        let operand_u8 = self.mem_read_no_sideeffect(self.reg.pc + 1);
+        let operand_u16 = as_address(operand_u8, self.mem_read_no_sideeffect(self.reg.pc + 2));
         let operand_rel = (self.reg.pc + 2).wrapping_add_signed((operand_u8 as i8).into());
 
         println!(
@@ -140,6 +150,41 @@ impl CPU {
         self.init();
     }
 
+    pub fn handle_nmi(&mut self) -> () {
+        self.push(self.reg.pc.msb()); // +2 cycles
+        self.push(self.reg.pc.lsb()); // +2 cycles
+
+        // TODO? mesen pushes different value despite same p?
+        self.push(self.reg.p.into()); // +2 cycles
+
+        let l = self.read_addr_nocycle(NMI_VECTOR);
+        let m = self.read_addr_nocycle(NMI_VECTOR + 1);
+        let addr = as_address(l, m);
+        self.cycle(); // +1 cycle
+
+        self.reg.pc = addr;
+        self.reg.nmi = true;
+    }
+
+    fn handle_oam_dma(&mut self) {
+        println!("OAM DMA");
+
+        let src_msb = self.ppu.oamdma();
+        for dst in 0..=255u8 {
+            // ?Internally (or, at least in mesen,) OAMADDR is incremented for each read
+            let src_addr = as_address(dst, src_msb);
+
+            let val = self.read_addr_cycle(src_addr); // +1 cycle
+
+            self.ppu.write_oam(dst, val);
+            self.cycle(); // +1 cycle
+        }
+        // "The copy takes 513 or 514 cycles"
+        self.cycle(); // +1 cycle
+
+        self.reg.dma = false;
+    }
+
     /// "Cycle" the cpu.
     ///
     /// Cycles: `1`
@@ -150,19 +195,26 @@ impl CPU {
 
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x2000..=0x3fff => self.ppu.read_mmio((addr % 8) + 0x2000),
+            0x2000..=0x3fff => self.ppu.read_mmio((addr % 8) + 0x2000, &mut self.mem),
             _ => self.mem.read(addr),
         }
     }
 
-    fn mem_read_no_mmio(&self, addr: u16) -> u8 {
-        assert!(addr >= 0x4000);
-        self.mem.read(addr)
+    // TODO: better function name
+    fn mem_read_no_sideeffect(&self, addr: u16) -> u8 {
+        match addr {
+            0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr % 8) + 0x2000),
+            _ => self.mem.read(addr),
+        }
     }
 
     fn mem_write(&mut self, addr: u16, val: u8) -> () {
         match addr {
-            0x2000..=0x3fff => self.ppu.write_mmio((addr % 8) + 0x2000, val),
+            0x2000..=0x3fff => self.ppu.write_mmio((addr % 8) + 0x2000, val, &mut self.mem),
+            0x4014 => {
+                self.ppu.write_oamdma(val);
+                self.reg.dma = true
+            }
             _ => self.mem.write(addr, val),
         };
     }
@@ -170,8 +222,13 @@ impl CPU {
     /// Read the value at the address `addr` without any cycles (including in the PPU).
     ///
     /// Cycles: `0`
-    pub fn read_addr_nocycle(&mut self, addr: u16) -> u8 {
-        self.mem_read_no_mmio(addr)
+    pub fn read_addr_nocycle(&self, addr: u16) -> u8 {
+        self.mem_read_no_sideeffect(addr)
+    }
+
+    pub fn read_addr_ppu(&self, addr: u16) -> u8 {
+        // TODO: make sure no side effects happen because of this
+        self.ppu.read_addr(addr, &self.mem)
     }
 
     /// Read the value at the address `addr`
@@ -194,7 +251,7 @@ impl CPU {
     ///
     /// Cycles: `0`
     pub fn pc_read_nocycle(&self) -> u8 {
-        self.mem_read_no_mmio(self.reg.pc)
+        self.mem_read_no_sideeffect(self.reg.pc)
     }
 
     /// Read the value pointe to by the pc.
@@ -329,7 +386,7 @@ impl CPU {
             IndexRegister::X => self.reg.x, // +1 cycle
             IndexRegister::Y => self.reg.y, // +1 cycle
         } as u16;
-        if (addr & 0xff) + delta > 0xff {
+        if (addr & 0xff00) != (addr + delta) & 0xff00 {
             self.cycle();
         }
         self.read_addr_cycle(addr + delta) // +1 cycle
@@ -447,7 +504,7 @@ impl CPU {
                 let ptr = as_address(m, 0x00);
                 let delta = self.reg.y as u16;
                 let addr = self.get_indirect(ptr) + delta; // +2 cycles
-                if (ptr & 0xff) + self.reg.y as u16 > 0xff {
+                if (addr & 0xff00) != (addr + delta) & 0xff00 {
                     self.cycle(); // +1 cycle
                 }
                 self.read_addr_cycle(addr) // +1 cycle
@@ -519,37 +576,54 @@ impl CPU {
         INST_TABLE[self.pc_read_nocycle() as usize]
     }
 
-    fn fetch_next_op_inst(&mut self) -> (u8, Inst) {
-        let op = self.fetch_next_op(); // 1 cycle
-        (op, INST_TABLE[op as usize])
-    }
-
     fn run_inst(&mut self, inst: Inst) -> () {
         inst.run(self);
     }
 
     pub fn fetch_and_run(&mut self) -> () {
         let cycles_before = self.cycles;
+
+        // OAM DMA handling
+        if self.reg.dma {
+            self.handle_oam_dma();
+        }
+
         let inst = self.fetch_next_inst(); // 1 cycle
         self.run_inst(inst); // n cycles
+
         let cycles_after = self.cycles;
+
         if cycles_after - cycles_before == 1 {
             self.cycle();
+        }
+
+        // Interrupt handling
+        if self.ppu.should_do_nmi() && !self.reg.nmi {
+            println!("NMI");
+            self.handle_nmi();
+        } else if self.reg.nmi && !self.ppu.nmi_enable() {
+            self.reg.nmi = false;
         }
     }
 
     pub fn fetch_and_run_dbg(&mut self) -> () {
         let cycles_before = self.cycles;
-        let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
-        self.run_inst(inst); // n cycles
+
+        self.fetch_and_run();
+
         let cycles_after = self.cycles;
-        print!(" inst {inst:?} (op: ${op:02x}) ");
-        if cycles_after - cycles_before == 1 {
-            println!("took 2 cycles (added one extra)");
-            self.cycle();
-        } else {
-            println!("took {} cycles", cycles_after - cycles_before);
-        }
+
+        println!("took {} cycles", cycles_after - cycles_before);
+        // let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
+        // self.run_inst(inst); // n cycles
+        // let cycles_after = self.cycles;
+        // print!(" inst {inst:?} (op: ${op:02x}) ");
+        // if cycles_after - cycles_before == 1 {
+        //     println!("took 2 cycles (added one extra)");
+        //     self.cycle();
+        // } else {
+        //     println!("took {} cycles", cycles_after - cycles_before);
+        // }
     }
 
     pub fn pc(&self) -> u16 {
