@@ -26,7 +26,7 @@ impl std::fmt::Display for AddrMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Imp => write!(f, ""),
-            Acc => write!(f, ""),
+            Acc => write!(f, " a"),
             Imm => write!(f, " #$_b"),
             ZP(ir)  => write!(f, " $_b{}", match ir {
                 N => "",
@@ -349,7 +349,7 @@ fn rot(cpu: &mut CPU, am: AddrMode, rotate: bool, left: bool) -> () {
         Acc => {
             let a = cpu.reg.a;
             cpu.reg.p.c = a.test_bit(7); // TODO: is this _really_ just in the case of A? check.
-            let new_val = (a << 1) | cpu.reg.p.c as u8;
+            let new_val = shift_fn(a) | cpu.reg.p.c as u8;
             cpu.reg.a = new_val;
             new_val
         }
