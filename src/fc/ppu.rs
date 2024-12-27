@@ -70,14 +70,6 @@ impl PPU {
         println!("  cycles: {}, scanlines: {}, frame: {}", self.cycle, self.scanline, self.frame);
     }
 
-    pub(super) fn cycles(&self) -> u32 {
-        self.cycle
-    }
-
-    pub(super) fn scanlines(&self) -> u32 {
-        self.scanline
-    }
-
     pub fn init(&mut self) -> () {
         // Once again, this is purely based on the value of the Mesen debugger after RESET
         self.cycle = 25;
@@ -141,7 +133,7 @@ impl PPU {
                             // }
                             if self.cycle == 256 {
                                 // TODO: actual fetch+write bytes instead of full scanline
-                                self.add_scanline_temp();
+                                self.add_scanline_temp(mem);
                             }
                         },
                         257..=320 => {}, // fetch tile data for sprites on the next scanline
@@ -186,7 +178,7 @@ impl PPU {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize],
-            _ => unreachable!(),
+            _ => unreachable!("addr: {addr:04x}"),
         }
     }
 
@@ -195,7 +187,7 @@ impl PPU {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
             0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, self.vram),
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize] = val,
-            _ => unreachable!(),
+            _ => unreachable!("addr: {addr:04x}"),
         }
     }
 
@@ -232,7 +224,7 @@ impl PPU {
             ADDRESS_OAMDATA   => self.read_oamdata(),
             ADDRESS_PPUSCROLL => self.reg.io_bus,
             ADDRESS_PPUADDR   => self.reg.io_bus,
-            ADDRESS_PPUDATA   => self.read_ppudata(),
+            ADDRESS_PPUDATA   => self.read_ppudata(mem),
             ADDRESS_OAMDMA    => self.reg.io_bus,
             _ => todo!(),
         }
@@ -257,7 +249,7 @@ impl PPU {
         self.oam[dst as usize] = val;
     }
 
-    fn add_scanline_temp(&self) -> () {
+    fn add_scanline_temp(&self, mem: &mut MemMap) -> () {
         for i in 0..=255 {
             // todo!();
             // self.read_addr(, mem)
@@ -306,9 +298,9 @@ impl PPU {
 
     fn write_ppuscroll(&mut self, val: u8) {
         if !self.reg.write_toggle {
-            self.reg.t = self.reg.t & 0xff00 | (val as u16);
+            self.reg.t = self.reg.t & 0x7f00 | (val as u16);
         } else {
-            self.reg.t = ((val as u16) << 8) | self.reg.t & 0xff;
+            self.reg.t = (((val & 0x7f) as u16) << 8) | self.reg.t & 0xff;
         }
 
         println!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {})", self.reg.write_toggle);
@@ -323,9 +315,9 @@ impl PPU {
     fn write_ppuaddr(&mut self, val: u8) {
         // TODO? "palette corruption" & "bus conflict"?
         if !self.reg.write_toggle {
-            self.reg.t = (((val as u16) << 8) | self.reg.t & 0xff) & 0x3fff;
+            self.reg.t = ((((val & 0x7f) as u16) << 8) | self.reg.t & 0xff) & 0x3fff;
         } else {
-            self.reg.t = (self.reg.t & 0xff00 | (val as u16)) & 0x3fff; // ?
+            self.reg.t = (self.reg.t & 0x7f00 | (val as u16)) & 0x3fff; // ?
         }
 
         println!("Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})", self.reg.write_toggle);
@@ -337,16 +329,29 @@ impl PPU {
         self.reg.v = self.reg.addr_bus;
     }
 
-    fn read_ppudata(&self) -> u8 {
+    fn read_ppudata(&mut self, mem: &MemMap) -> u8 {
         // TODO? "reading palette ram" & "read conflict with dpcm samples"?
-        todo!("read_ppudata")
+        let old_val = self.reg.read_buf;
+        let addr = self.reg.v;
+
+        self.reg.read_buf = self.read_addr(addr, mem);
+        println!("Read ${old_val:02x} from PPUDATA (${ADDRESS_PPUDATA:04x}) new addr: ${addr:04x}",);
+
+        let delta = self.reg.control.vram_addr_inc;
+        println!("delta: {}", delta);
+        self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
+        self.reg.addr_bus = self.reg.v;
+
+        old_val
     }
 
     fn write_ppudata(&mut self, val: u8, mem: &mut MemMap) {
         let addr = self.reg.v;
         self.write_addr(addr, val, mem);
         println!("Wrote ${val:02x} to PPUDATA (${ADDRESS_PPUDATA:04x}) addr: ${addr:04x}",);
-        self.reg.v +=1;
+
+        let delta = self.reg.control.vram_addr_inc;
+        self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
         self.reg.addr_bus = self.reg.v;
     }
 
@@ -376,12 +381,13 @@ struct Registers {
     scroll_x: u8,
     write_toggle: bool,
     addr_bus: u16,
+    read_buf: u8,
 }
 
 #[derive(Clone, Copy)]
 struct PPUControl {
     nametable_addr: u8,
-    vram_addr_inc: bool,
+    vram_addr_inc: u8,
     spr_pattern_addr: u16,
     bg_pattern_addr: u16,
     sprites_large: bool,
@@ -427,6 +433,7 @@ impl Registers {
             scroll_x: 0x00, // ?
             write_toggle: false,
             addr_bus: 0,
+            read_buf: 0,
         }
     }
 }
@@ -435,7 +442,7 @@ impl From<u8> for PPUControl {
     fn from(val: u8) -> Self {
         PPUControl {
             nametable_addr:   val & 0b11,
-            vram_addr_inc:    val.test_bit(2),
+            vram_addr_inc:    if val.test_bit(2) {32} else {1},
             spr_pattern_addr: if val.test_bit(3) { 0x1000 } else { 0x0000 },
             bg_pattern_addr:  if val.test_bit(4) { 0x1000 } else { 0x0000 },
             sprites_large:    val.test_bit(5),
@@ -448,12 +455,12 @@ impl From<u8> for PPUControl {
 impl Into<u8> for PPUControl {
     fn into(self) -> u8 {
         (self.nametable_addr)
-        | (self.vram_addr_inc as u8)           << 2
+        | ((self.vram_addr_inc >> 5) as u8)     << 2
         | ((self.spr_pattern_addr >> 12) as u8) << 3
         | ((self.bg_pattern_addr >> 12) as u8)  << 4
-        | (self.sprites_large as u8)           << 5
-        | /* (self.ppu_master_slave as u8) */0 << 6
-        | (self.nmi_enable as u8)              << 7
+        | (self.sprites_large as u8)            << 5
+        | /* (self.ppu_master_slave as u8) */0  << 6
+        | (self.nmi_enable as u8)               << 7
    }
 }
 

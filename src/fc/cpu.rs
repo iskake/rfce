@@ -114,7 +114,6 @@ impl CPU {
             "  cycles: {}, nmi: {}, irq: {}",
             self.cycles, self.reg.nmi, self.reg.irq
         );
-        // println!("  (ppu) cycles: {}, scanlines: {}", self.ppu.cycles(), self.ppu.scanlines());
         self.ppu.print_state();
 
         let inst = self.fetch_next_inst_nocycle();
