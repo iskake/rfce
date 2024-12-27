@@ -1,4 +1,4 @@
-use crate::fc::NESFile;
+use crate::fc::{ppu, NESFile};
 
 use super::Memory;
 
@@ -13,6 +13,8 @@ pub enum MapperType {
 pub trait Mapper : Memory {
     fn read_chr(&self, addr: u16) -> u8;
     fn write_chr(&mut self, addr: u16, val: u8) -> ();
+    fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8;
+    fn nametable_write(&mut self, addr: u16, val: u8, vram: [u8; ppu::VRAM_SIZE]) -> ();
 }
 
 pub struct NROMMapper {
@@ -54,6 +56,15 @@ impl NROMMapper {
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
 
         NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
+    }
+
+    fn nametable_addr_fix(&self, addr: u16) -> u16 {
+        let a = addr - 0x2000;
+        if self.nametable_v_mirror {
+            a & 0x7ff
+        } else {
+            (a & 0x800 >> 1) | a & 0x3ff
+        }
     }
 }
 
@@ -97,5 +108,15 @@ impl Mapper for NROMMapper {
 
     fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
         ()  // TODO?
+    }
+
+    fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8 {
+        let addr = self.nametable_addr_fix(addr);
+        vram[addr as usize]
+    }
+
+    fn nametable_write(&mut self, addr: u16, val: u8, mut vram: [u8; ppu::VRAM_SIZE]) -> () {
+        let addr = self.nametable_addr_fix(addr);
+        vram[addr as usize] = val;
     }
 }

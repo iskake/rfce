@@ -2,7 +2,7 @@ use crate::bits::Bitwise;
 
 use super::mem::MemMap;
 
-const VRAM_SIZE: usize = NAMETABLE_SIZE * 4;
+pub const VRAM_SIZE: usize = NAMETABLE_SIZE * 2;
 const PATTERN_TABLE_SIZE: usize = 0x1000;
 const NAMETABLE_SIZE: usize = 0x0400;
 const NAMETABLE_ATTRIBUTE_TABLE_SIZE: usize = 64;
@@ -184,7 +184,7 @@ impl PPU {
     pub fn read_addr(&self, addr: u16, mem: &MemMap) -> u8 {
         match addr {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
-            0x2000..=0x2fff => self.read_vram(addr - 0x2000),
+            0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize],
             _ => unreachable!(),
         }
@@ -193,7 +193,7 @@ impl PPU {
     pub fn write_addr(&mut self, addr: u16, val: u8, mem: &mut MemMap) -> () {
         match addr {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
-            0x2000..=0x2fff => self.write_vram(addr - 0x2000, val),
+            0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, self.vram),
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize] = val,
             _ => unreachable!(),
         }
@@ -251,14 +251,6 @@ impl PPU {
             ADDRESS_OAMDMA    => { self.reg.io_bus = val; self.write_oamdma(val)},
             _ => todo!(),
         }
-    }
-
-    fn read_vram(&self, addr: u16,) -> u8 {
-        self.vram[addr as usize]
-    }
-
-    fn write_vram(&mut self, addr: u16, val: u8) -> () {
-        self.vram[addr as usize] = val;
     }
 
     pub fn write_oam(&mut self, dst: u8, val: u8) -> () {

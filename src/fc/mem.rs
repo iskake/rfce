@@ -4,7 +4,8 @@ use mapper::{Mapper, NROMMapper};
 pub mod cart;
 pub mod mapper;
 
-const MAPPER_SPACE: usize = 0x10000 - 0x4020;
+const MAPPER_START_ADDRESS: usize = 0x4020;
+const MAPPER_SPACE: usize = 0x10000 - MAPPER_START_ADDRESS;
 
 pub trait Memory {
     fn read(&self, addr: u16) -> u8;
@@ -16,7 +17,7 @@ type DummyMapper = [u8; MAPPER_SPACE];
 
 impl Memory for DummyMapper {
     fn read(&self, addr: u16) -> u8 {
-        self[(addr as usize) - 0x4020]
+        self[(addr as usize) - MAPPER_START_ADDRESS]
     }
 
     fn write(&mut self, _addr: u16, _val: u8) -> () {
@@ -33,26 +34,13 @@ impl Mapper for DummyMapper {
     fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
         ()
     }
-}
 
-// TODO: Temp. In this case, PRG == CHR
-impl Memory for Vec<u8> {
-    fn read(&self, addr: u16) -> u8 {
-        self[addr as usize]
+    fn nametable_read(&self, _addr: u16, _vram: [u8; super::ppu::VRAM_SIZE]) -> u8 {
+        0xff
     }
 
-    fn write(&mut self, addr: u16, val: u8) -> () {
-        self[addr as usize] = val;
-    }
-}
-
-impl Mapper for Vec<u8> {
-    fn read_chr(&self, addr: u16) -> u8 {
-        self[addr as usize]
-    }
-
-    fn write_chr(&mut self, addr: u16, val: u8) -> () {
-        self[addr as usize] = val;
+    fn nametable_write(&mut self, _addr: u16, _val: u8, mut _vram: [u8; super::ppu::VRAM_SIZE]) -> () {
+        ()
     }
 }
 
