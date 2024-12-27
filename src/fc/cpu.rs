@@ -517,7 +517,6 @@ impl CPU {
     ///
     /// Cycles: `5` for x and y
     pub fn ind_write_inc(&mut self, val: u8, ir: IndexRegister) -> () {
-        // TODO: this one seems a bit sketchy... idk...
         let pcval = self.pc_read_inc(); // +1 cycle
         match ir {
             IndexRegister::X => {
@@ -529,7 +528,7 @@ impl CPU {
             IndexRegister::Y => {
                 let ptr = as_address(pcval, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr + delta); // +2 cycles
+                let addr = self.get_indirect(ptr) + delta; // +2 cycles
                 self.cycle(); // +1 cycle extra
                 self.write_addr_cycle(addr, val) // +1 cycle
             }
