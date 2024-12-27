@@ -99,10 +99,10 @@ impl Debugger {
                 Ok(())
             }
             ["b" | "break", addr] => {
-                self.handle_breakpoint_add(&parts, "address", addr)
+                self.handle_breakpoint_add("address", addr)
             }
             ["b" | "break", break_type, val] => {
-                self.handle_breakpoint_add(&parts, break_type, val)
+                self.handle_breakpoint_add(break_type, val)
             }
             ["b" | "break", ..] => Err(String::from("Usage: break [address|scanline] <value>")),
             ["d" | "delete", break_type, val] => {
@@ -172,13 +172,13 @@ impl Debugger {
 
     fn examine(&self, mem_type: &str, addr: &str) -> Result<(), String> {
         match mem_type {
-            "cpu" => {
+            "c" | "cpu" => {
                 let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_nocycle(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
-            "ppu" => {
+            "p" | "ppu" => {
                 let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_ppu(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
@@ -219,7 +219,7 @@ impl Debugger {
         println!();
     }
 
-    fn handle_breakpoint_add(&mut self, parts: &Vec<&str>, break_type: &str, val: &str) -> Result<(), String> {
+    fn handle_breakpoint_add(&mut self, break_type: &str, val: &str) -> Result<(), String> {
         // Add breakpoint
         match break_type {
             "a" | "addr" | "address" => {
