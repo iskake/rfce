@@ -237,6 +237,30 @@ impl Debugger {
                     ))
                 }
             },
+            "c" | "cpu" | "cycle" | "cpucycle" => {
+                println!("INFO: breakpoints for cpu cycles currently do not work");
+                // Add a breakpoint for a (cpu) cycle
+                if let Ok(cycle) = val.parse() {
+                    self.try_add_breakpoint(Breakpoint::CPUCycle(cycle))
+                } else {
+                    Err(String::from(
+                        "Failed to parse cycle!\n\
+                         Usage: break cpucycle <cycle>",
+                    ))
+                }
+            },
+            "p" | "ppu" | "ppucycle" => {
+                println!("INFO: breakpoints for ppu cycles currently do not work");
+                // Add a breakpoint for a (ppu) cycle
+                if let Ok(cycle) = val.parse() {
+                    self.try_add_breakpoint(Breakpoint::PPUCycle(cycle))
+                } else {
+                    Err(String::from(
+                        "Failed to parse cycle!\n\
+                         Usage: break ppucycle <cycle>",
+                    ))
+                }
+            },
             "s" | "scan" | "line" | "scanline" => {
                 println!("INFO: breakpoints for scanlines currently do not work");
                 // Add a breakpoint for a scanline
@@ -271,6 +295,30 @@ impl Debugger {
                     Err(String::from(
                         "Could not parse provided address!\n\
                          Usage: delete address $<address>",
+                    ))
+                }
+            },
+            "c" | "cpu" | "cycle" | "cpucycle" => {
+                println!("INFO: breakpoints for cpu cycles currently do not work");
+                // Add a breakpoint for a (cpu) cycle
+                if let Ok(cycle) = val.parse() {
+                    self.try_remove_breakpoint(Breakpoint::CPUCycle(cycle))
+                } else {
+                    Err(String::from(
+                        "Failed to parse cycle!\n\
+                         Usage: delete cpucycle <cycle>",
+                    ))
+                }
+            },
+            "p" | "ppu" | "ppucycle" => {
+                println!("INFO: breakpoints for ppu cycles currently do not work");
+                // Add a breakpoint for a (ppu) cycle
+                if let Ok(cycle) = val.parse() {
+                    self.try_remove_breakpoint(Breakpoint::PPUCycle(cycle))
+                } else {
+                    Err(String::from(
+                        "Failed to parse cycle!\n\
+                         Usage: delete ppucycle <cycle>",
                     ))
                 }
             },
