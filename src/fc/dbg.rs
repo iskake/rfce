@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::io::{self, Error, Write};
-use std::process::exit;
 
 use crate::bits;
 
@@ -62,7 +61,12 @@ impl Debugger {
             match stdin.read_line(&mut input) {
                 Ok(_) => match self.handle_input(&mut input) {
                     Ok(()) => (),
-                    Err(e) => println!("{}", if !self.ed_mode { e } else { "?".to_owned() }),
+                    Err(e) => {
+                        if e == "__stop" {
+                            break;
+                        }
+                        println!("{}", if !self.ed_mode { e } else { "?".to_owned() });
+                    }
                 },
                 Err(err) => println!("An error occurred: {}", err),
             };
@@ -93,6 +97,7 @@ impl Debugger {
                 Ok(())
             }
             ["cv"] => {
+                // TODO: handle breakpoints as well?
                 self.fc.run_to_vblank();
                 self.fc.cpu.print_state();
                 Ok(())
@@ -150,9 +155,9 @@ impl Debugger {
             ["x", mem_type, addr] => self.examine(mem_type, addr),
             ["x", addr] => self.examine("cpu", addr),
             ["x", ..] => Err(String::from("Usage: x $<address>")),
-            ["q" | "quit" | "exit"] => {
+            ["q" | "quit" | "exit" | "stop"] => {
                 if !self.ed_mode {
-                    exit(0)
+                    Err(String::from("__stop"))
                 } else {
                     Err(String::new())
                 }
