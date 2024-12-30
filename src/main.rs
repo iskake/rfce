@@ -1,9 +1,14 @@
-use std::{env, io::Error};
+use std::{env, io::Error, time::Duration};
+
+use gui::Gui;
+use imgui::*;
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 
 use crate::fc::dbg::Debugger;
 
 pub mod bits;
 pub mod fc;
+pub mod gui;
 
 fn main() -> Result<(), Error> {
     let args: Vec<String> = env::args().collect();
@@ -16,5 +21,10 @@ fn main() -> Result<(), Error> {
         println!("No nes file provided.\n");
         println!("Usage: rfce <file>\n");
     }
+
+    // Temp., todo, etc.
+    let mut gui = Gui::new();
+    gui.run_forever();
+
     Ok(())
 }
