@@ -604,6 +604,18 @@ impl CPU {
         }
     }
 
+    pub fn run_to_vblank(&mut self) -> () {
+        loop {
+            let before = self.ppu.is_vblank();
+            self.fetch_and_run();
+            let after = self.ppu.is_vblank();
+
+            if after && after != before {
+                break;
+            }
+        }
+    }
+
     pub fn fetch_and_run_dbg(&mut self) -> () {
         let cycles_before = self.cycles;
 

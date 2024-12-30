@@ -95,6 +95,10 @@ impl PPU {
         self.frame = 0;
     }
 
+    pub(crate) fn is_vblank(&self) -> bool {
+        self.reg.status.vblank
+    }
+
     pub(crate) fn should_do_nmi(&self) -> bool {
         self.reg.status.vblank && self.reg.control.nmi_enable
     }

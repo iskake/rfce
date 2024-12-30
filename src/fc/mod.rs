@@ -76,6 +76,10 @@ impl FC {
         self.cpu.init();
     }
 
+    pub fn run_to_vblank(&mut self) -> () {
+        self.cpu.run_to_vblank();
+    }
+
     pub fn step(&mut self) -> () {
         self.cpu.fetch_and_run();
     }

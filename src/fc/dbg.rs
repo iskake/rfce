@@ -92,6 +92,11 @@ impl Debugger {
                 }
                 Ok(())
             }
+            ["cv"] => {
+                self.fc.run_to_vblank();
+                self.fc.cpu.print_state();
+                Ok(())
+            }
             ["s"] => {
                 // Step cpu forward 1 instruction
                 self.fc.cpu.fetch_and_run_dbg();
