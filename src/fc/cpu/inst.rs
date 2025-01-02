@@ -39,7 +39,7 @@ impl std::fmt::Display for AddrMode {
                 Y => ",y",
             }),
             Ind(ir) => match ir {
-                N => write!(f, " $_w"),
+                N => write!(f, " ($_w)"),
                 X => write!(f, " ($_b,x)"),
                 Y => write!(f, " ($_b),y"),
             },
@@ -50,7 +50,7 @@ impl std::fmt::Display for AddrMode {
 
 #[derive(Clone,Copy,Debug)]
 #[rustfmt::skip]
-pub enum Inst { 
+pub enum Inst {
     // TODO: undefined opcodes
     ADC(AddrMode), AND(AddrMode), ASL(AddrMode), BCC(AddrMode), BCS(AddrMode), BEQ(AddrMode), BIT(AddrMode),
     BMI(AddrMode), BNE(AddrMode), BPL(AddrMode), BRK(AddrMode), BVC(AddrMode), BVS(AddrMode), CLC(AddrMode),

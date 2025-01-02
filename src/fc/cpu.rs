@@ -475,10 +475,10 @@ impl CPU {
     ///
     /// Cycles: `2`
     pub fn get_indirect(&mut self, addr: u16) -> u16 {
-        if addr == 0x00ff {
+        if addr & 0xff == 0x00ff {
             // Wraparound
-            let l = self.read_addr_cycle(0xff); // +1 cycle
-            let m = self.read_addr_cycle(0x00); // +1 cycle
+            let l = self.read_addr_cycle((addr & 0xff00) | 0xff); // +1 cycle
+            let m = self.read_addr_cycle((addr & 0xff00) | 0x00); // +1 cycle
             as_address(l, m)
         } else {
             let l = self.read_addr_cycle(addr); // +1 cycle
@@ -502,11 +502,11 @@ impl CPU {
             IndexRegister::Y => {
                 let ptr = as_address(m, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr) + delta; // +2 cycles
-                if (addr & 0xff00) != (addr + delta) & 0xff00 {
+                let addr = self.get_indirect(ptr); // +2 cycles
+                if (addr & 0xff00) != ((addr + delta) & 0xff00) {
                     self.cycle(); // +1 cycle
                 }
-                self.read_addr_cycle(addr) // +1 cycle
+                self.read_addr_cycle(addr + delta) // +1 cycle
             }
             IndexRegister::N => unreachable!(),
         }
