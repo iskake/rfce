@@ -103,7 +103,8 @@ impl Memory for NROMMapper {
 
 impl Mapper for NROMMapper {
     fn read_chr(&self, addr: u16) -> u8 {
-        self.chr_rom[addr as usize]
+        // TODO?
+        self.chr_rom[(addr as usize) % self.chr_rom.len()]
     }
 
     fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
