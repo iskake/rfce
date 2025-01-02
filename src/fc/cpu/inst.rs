@@ -228,7 +228,7 @@ impl Inst {
             Inst::TAY(_a) => set_y(cpu, cpu.reg.a),
             Inst::TXA(_a) => set_a(cpu, cpu.reg.x),
             Inst::TYA(_a) => set_a(cpu, cpu.reg.y),
-            Inst::TSX(_a) => cpu.reg.x = cpu.reg.sp,
+            Inst::TSX(_a) => set_x(cpu, cpu.reg.sp),
             Inst::TXS(_a) => cpu.reg.sp = cpu.reg.x,
             Inst::ILL(op) => ill(cpu, op),
         }
