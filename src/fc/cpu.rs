@@ -605,12 +605,16 @@ impl CPU {
     }
 
     pub fn run_to_vblank(&mut self) -> () {
+        let start = std::time::Instant::now();
         loop {
             let before = self.ppu.is_vblank();
             self.fetch_and_run();
             let after = self.ppu.is_vblank();
 
             if after && after != before {
+                let end = start.elapsed();
+                println!("Time: {:.2?}", end);
+                self.ppu.generate_nametables_image_temp(&mut self.mem);
                 break;
             }
         }

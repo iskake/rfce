@@ -1,5 +1,10 @@
 mod tile;
 
+use std::path::Path;
+
+use image::RgbImage;
+use tile::Tile;
+
 use crate::bits::Bitwise;
 
 use super::mem::MemMap;
@@ -11,6 +16,7 @@ const NAMETABLE_ATTRIBUTE_TABLE_SIZE: usize = 64;
 
 const OAM_SIZE: usize = 64;
 const SPRITE_SIZE: usize = 4;
+const TILE_SIZE: u16 = 16;
 const PALETTE_RAM_SIZE: usize = 0x20;
 
 const PIXEL_SIZE: usize = 1;    // ??
@@ -44,6 +50,7 @@ pub struct PPU {
     frame: u64,
     // ??vvv
     frame_buf: Vec<u8>,
+    nametable_buf: Vec<u8>,
 }
 
 impl PPU {
@@ -58,6 +65,7 @@ impl PPU {
             scanline: 0,
             frame: 0,
             frame_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * PIXEL_SIZE],
+            nametable_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
         }
     }
 
@@ -98,7 +106,10 @@ impl PPU {
     }
 
     pub(crate) fn is_vblank(&self) -> bool {
-        self.reg.status.vblank
+        // !!!TEMPORARY!!!
+        // TODO: make this back to the original
+        // self.reg.status.vblank
+        self.scanline > 240 && self.scanline < 260
     }
 
     pub(crate) fn should_do_nmi(&self) -> bool {
@@ -183,7 +194,7 @@ impl PPU {
         match addr {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
-            0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize],
+            0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 0x20) as usize],
             _ => unreachable!("addr: {addr:04x}"),
         }
     }
@@ -191,12 +202,21 @@ impl PPU {
     pub fn write_addr(&mut self, addr: u16, val: u8, mem: &mut MemMap) -> () {
         match addr {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
-            0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, self.vram),
-            0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 20) as usize] = val,
+            0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, &mut self.vram),
+            0x3f00..=0x3fff => self.write_pal(addr, val),
             _ => unreachable!("addr: {addr:04x}"),
         }
     }
 
+    fn write_pal(&mut self, addr: u16, val: u8) {
+        if addr & 0b11 == 0 {
+            self.pal[((addr - 0x3f00) % 0x20) as usize] = val;
+            self.pal[((addr - 0x3f10) % 0x20) as usize] = val;
+        } else {
+            self.pal[((addr - 0x3f00) % 0x20) as usize] = val;
+        }
+    }
+    
     pub fn read_mmio(&mut self, addr: u16, mem: &mut MemMap) -> u8 {
         self.read_reg(addr, mem)
     }
@@ -366,7 +386,127 @@ impl PPU {
         self.reg.oam_dma = val;
         println!("Wrote ${val:02x} to OAMDMA (${ADDRESS_OAMDMA:04x})",);
     }
+
+    pub(crate) fn generate_nametables_image_temp(&mut self, mem: &MemMap) -> () {
+        let img_w = 2 * PICTURE_WIDTH;//8*2;
+        let img_h = 2 * PICTURE_HEIGHT;
+
+        for nametable_num in 0..4 {
+            for nametable_byte in 0..(NAMETABLE_SIZE - NAMETABLE_ATTRIBUTE_TABLE_SIZE /* * 4 */) {
+                let nametable_x = nametable_byte % 32;
+                let nametable_y = nametable_byte >> 5;
+
+                let i_: u16 = nametable_byte as u16;
+
+                let nametable_addr = self.reg.control.nametable_addr;
+                let tile_idx = self.read_addr(i_ + nametable_addr + (nametable_num * NAMETABLE_SIZE) as u16, mem);
+                let tile_ptr = tile_idx as u16 * TILE_SIZE;
+
+                let bg_addr = self.reg.control.bg_pattern_addr;
+                let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr+TILE_SIZE).map(|x| mem.mapper.read_chr(x + bg_addr)).collect();
+
+                let tile = Tile::from_slice(tile_bytes.as_slice());
+
+                for j in 0..8 {
+                    for k in 0..8 {
+                        let pixel_color = tile.color_at(k, j);
+
+                        let pixel_x = (nametable_x * 8) + k;
+                        let pixel_y = (nametable_y * 8) + j;
+                        let ntbl_num_x_coord = PICTURE_WIDTH * (nametable_num & 0b01);
+                        let ntbl_num_y_coord = PICTURE_HEIGHT * ((nametable_num & 0b10) >> 1);
+                        let idx = img_w * (pixel_y + ntbl_num_y_coord) + (pixel_x + ntbl_num_x_coord);
+
+                        // if (idx * 3) >= img_w * img_h * 3 {
+                        //     dbg!(idx);
+                        //     dbg!(idx*3);
+                        // }
+                        let pal_idx = self.pal_idx_from_attr_table(nametable_num, nametable_x, nametable_y, mem);
+
+                        let color = self.pixel_color_at(pal_idx, pixel_color, false);
+                        let (r,b,g) = as_rgb(color);
+
+                        self.nametable_buf[3 * idx]     = r;
+                        self.nametable_buf[3 * idx + 1] = g;
+                        self.nametable_buf[3 * idx + 2] = b;
+                    }
+                }
+            }
+        }
+
+        // TODO: remove this so we don't need 100 extra dependencies...
+        let img: RgbImage = RgbImage::from_raw(img_w as u32, img_h as u32, self.nametable_buf.clone()).unwrap();
+        img.save(Path::new("nametables.png")).unwrap();
+    }
+
+    /// Get the index into the attribute table corresponding to the specified x/y coordinate (0-31 / 0-29)
+    fn pal_idx_from_attr_table(&self, nametable_num: usize, tile_x: usize, tile_y: usize, mem: &MemMap) -> u8 {
+        assert!(nametable_num == (nametable_num & 0b11));
+
+        let base_addr = 0x23c0 | (nametable_num << 10);
+        let x = tile_x / 4;
+        let y = tile_y / 4;
+        let addr = base_addr + (y * 0x8) + x;
+
+        let attr = self.read_addr(addr as u16, mem);
+
+        let dx = (tile_x / 2) & 0b1;
+        let dy = (tile_y / 2) & 0b1;
+        let delta = 2 * ((dy << 1) | dx);
+
+        // let top_left = attr & 0b11;
+        // let top_right = (attr & 0b1100)>> 2;
+        // let bottom_left = (attr & 0b110000)>> 4;
+        // let bottom_right = (attr & 0b11000000)>> 6;
+
+        (attr & (0b11 << delta)) >> delta
+    }
+
+    /// Get the color of a specific pixel / palette pair.
+    fn pixel_color_at(&self, pal_idx: u8, pix_val: u8, sprite: bool) -> u8 {
+        assert!(pal_idx == (pal_idx & 0b11));
+        assert!(pix_val == (pix_val & 0b11));
+
+        let mut idx = ((sprite as u8) << 4) | (pal_idx << 2) | pix_val;
+
+        if pix_val == 0 {
+            idx &= 0b1_0000;
+        }
+
+        let mut color = self.pal[idx as usize];
+
+        if self.reg.mask.grayscale {
+            color &= 0x30;
+        }
+        color
+    }
 }
+
+/// Get the rgb color corresponding to the ppu color.
+fn as_rgb(color: u8) -> (u8,u8,u8) {
+    let r = PALETTE_COLORS[3 * color as usize];
+    let g = PALETTE_COLORS[3 * color as usize + 1];
+    let b = PALETTE_COLORS[3 * color as usize + 2];
+    (r, b, g)
+}
+
+// TODO? make it possible to change this?
+const PALETTE_COLORS: [u8; 0x40 * 3] = [
+    // NOTE: the colors are from the default mesen color palette.
+    0x66, 0x66, 0x66, 0x00, 0x2a, 0x88, 0x14, 0x12, 0xa7, 0x3b, 0x00, 0xa4, 0x5c, 0x00, 0x7e, 0x6e,
+    0x00, 0x40, 0x6c, 0x06, 0x00, 0x56, 0x1d, 0x00, 0x33, 0x35, 0x00, 0x0b, 0x48, 0x00, 0x00, 0x52,
+    0x00, 0x00, 0x4f, 0x08, 0x00, 0x40, 0x4d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xad, 0xad, 0xad, 0x15, 0x5f, 0xd9, 0x42, 0x40, 0xff, 0x75, 0x27, 0xfe, 0xa0, 0x1a, 0xcc, 0xb7,
+    0x1e, 0x7b, 0xb5, 0x31, 0x20, 0x99, 0x4e, 0x00, 0x6b, 0x6d, 0x00, 0x38, 0x87, 0x00, 0x0c, 0x93,
+    0x00, 0x00, 0x8f, 0x32, 0x00, 0x7c, 0x8d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xff, 0xfe, 0xff, 0x64, 0xb0, 0xff, 0x92, 0x90, 0xff, 0xc6, 0x76, 0xff, 0xf3, 0x6a, 0xff, 0xfe,
+    0x6e, 0xcc, 0xfe, 0x81, 0x70, 0xea, 0x9e, 0x22, 0xbc, 0xbe, 0x00, 0x88, 0xd8, 0x00, 0x5c, 0xe4,
+    0x30, 0x45, 0xe0, 0x82, 0x48, 0xcd, 0xde, 0x4f, 0x4f, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xff, 0xfe, 0xff, 0xc0, 0xdf, 0xff, 0xd3, 0xd2, 0xff, 0xe8, 0xc8, 0xff, 0xfb, 0xc2, 0xff, 0xfe,
+    0xc4, 0xea, 0xfe, 0xcc, 0xc5, 0xf7, 0xd8, 0xa5, 0xe4, 0xe5, 0x94, 0xcf, 0xef, 0x96, 0xbd, 0xf4,
+    0xab, 0xb3, 0xf3, 0xcc, 0xb5, 0xeb, 0xf2, 0xb8, 0xb8, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+];
+
 
 struct Registers {
     // $2000
@@ -392,7 +532,7 @@ struct Registers {
 
 #[derive(Clone, Copy)]
 struct PPUControl {
-    nametable_addr: u8,
+    nametable_addr: u16,
     vram_addr_inc: u8,
     spr_pattern_addr: u16,
     bg_pattern_addr: u16,
@@ -447,7 +587,7 @@ impl Registers {
 impl From<u8> for PPUControl {
     fn from(val: u8) -> Self {
         PPUControl {
-            nametable_addr:   val & 0b11,
+            nametable_addr:   ((val & 0b11) as u16) << 10 | 0x2000,
             vram_addr_inc:    if val.test_bit(2) {32} else {1},
             spr_pattern_addr: if val.test_bit(3) { 0x1000 } else { 0x0000 },
             bg_pattern_addr:  if val.test_bit(4) { 0x1000 } else { 0x0000 },
@@ -460,7 +600,7 @@ impl From<u8> for PPUControl {
 
 impl Into<u8> for PPUControl {
     fn into(self) -> u8 {
-        (self.nametable_addr)
+        ((self.nametable_addr & 0xc00) >> 10) as u8
         | ((self.vram_addr_inc >> 5) as u8)     << 2
         | ((self.spr_pattern_addr >> 12) as u8) << 3
         | ((self.bg_pattern_addr >> 12) as u8)  << 4
