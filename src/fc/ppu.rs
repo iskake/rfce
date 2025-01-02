@@ -1,3 +1,5 @@
+mod tile;
+
 use crate::bits::Bitwise;
 
 use super::mem::MemMap;
