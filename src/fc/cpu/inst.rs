@@ -215,9 +215,9 @@ impl Inst {
             Inst::LDY(am) => ld(cpu, am, InstrReg::Y),
             Inst::LSR(am) => rot(cpu, am, false, false),
             Inst::PHA(_a) => cpu.push(cpu.reg.a),
-            Inst::PHP(_a) => cpu.push(cpu.reg.p.into()),
-            Inst::PLA(_a) => cpu.reg.a = cpu.pull(),
-            Inst::PLP(_a) => cpu.reg.p = cpu.pull().into(),
+            Inst::PHP(_a) => cpu.push(Into::<u8>::into(cpu.reg.p) | 0b0011_0000),
+            Inst::PLA(_a) => pla(cpu),
+            Inst::PLP(_a) => cpu.reg.p = (cpu.pull() & 0b1100_1111).into(),
             Inst::ROL(am) => rot(cpu, am, true, true),
             Inst::ROR(am) => rot(cpu, am, true, false),
             Inst::SBC(am) => adc(cpu, am, true),
@@ -233,6 +233,12 @@ impl Inst {
             Inst::ILL(op) => ill(cpu, op),
         }
     }
+}
+
+fn pla(cpu: &mut CPU) {
+    cpu.reg.a = cpu.pull();
+    cpu.reg.p.z = cpu.reg.a == 0;
+    cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
 
 fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
