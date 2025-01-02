@@ -39,7 +39,7 @@ impl Mapper for DummyMapper {
         0xff
     }
 
-    fn nametable_write(&mut self, _addr: u16, _val: u8, mut _vram: [u8; super::ppu::VRAM_SIZE]) -> () {
+    fn nametable_write(&mut self, _addr: u16, _val: u8, _vram: &mut [u8; super::ppu::VRAM_SIZE]) -> () {
         ()
     }
 }
