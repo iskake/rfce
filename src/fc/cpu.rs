@@ -87,7 +87,7 @@ impl Registers {
 pub struct CPU {
     reg: Registers,
     pub mem: MemMap, // TODO?: move this somewhere else and have a reference?
-    ppu: PPU,
+    pub ppu: PPU,
     cycles: u64,
 }
 
