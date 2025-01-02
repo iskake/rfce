@@ -1,8 +1,6 @@
-use std::{env, io::Error, time::Duration};
+use std::{env, io::Error};
 
 use gui::Gui;
-use imgui::*;
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 
 use crate::fc::dbg::Debugger;
 
@@ -23,8 +21,8 @@ fn main() -> Result<(), Error> {
     }
 
     // Temp., todo, etc.
-    let mut gui = Gui::new();
-    gui.run_forever();
+    // let mut gui = Gui::new();
+    // gui.run_forever();
 
     Ok(())
 }
