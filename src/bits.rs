@@ -3,17 +3,17 @@ use std::num::ParseIntError;
 use num_traits::PrimInt;
 
 pub trait Bitwise: PrimInt {
-    fn test_bit(&self, i: Self) -> bool;
+    fn test_bit(&self, i: usize) -> bool;
 }
 
 impl Bitwise for u8 {
-    fn test_bit(&self, i: u8) -> bool {
+    fn test_bit(&self, i: usize) -> bool {
         ((self & (1 << i)) >> i) == 1
     }
 }
 
 impl Bitwise for u16 {
-    fn test_bit(&self, i: u16) -> bool {
+    fn test_bit(&self, i: usize) -> bool {
         ((self & (1 << i)) >> i) == 1
     }
 }
