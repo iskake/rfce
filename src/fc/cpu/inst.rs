@@ -22,6 +22,24 @@ pub enum AddrMode {
                         // (Indirect),Y
 }
 
+impl AddrMode {
+    pub fn arg_count(&self) -> u8 {
+        match self {
+            Imp => 0,
+            Acc => 0,
+            Imm => 1,
+            ZP(_) => 1,
+            Abs(_) => 2,
+            Ind(ir) => match ir {
+                N => 2,
+                X => 1,
+                Y => 1,
+            },
+            Rel => 1,
+        }
+    }
+}
+
 impl std::fmt::Display for AddrMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
