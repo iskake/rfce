@@ -86,7 +86,7 @@ impl Registers {
 
 pub struct CPU {
     reg: Registers,
-    pub mem: MemMap, // TODO?: move this somewhere else and have a reference?
+    pub mem: MemMap,
     pub ppu: PPU,
     cycles: u64,
 }
@@ -227,7 +227,6 @@ impl CPU {
     }
 
     pub fn read_addr_ppu(&self, addr: u16) -> u8 {
-        // TODO: make sure no side effects happen because of this
         self.ppu.read_addr(addr, &self.mem)
     }
 
@@ -298,8 +297,8 @@ impl CPU {
         let operand = self.pc_read(); // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => self.reg.x, //TODO: have +1 cycle?
-            IndexRegister::Y => self.reg.y, //TODO: have +1 cycle?
+            IndexRegister::X => self.reg.x, // Note: does NOT add +1 cycle
+            IndexRegister::Y => self.reg.y, // Note: does NOT add +1 cycle
         };
         // if operand as u16 + delta as u16 > 0xff {
         //     self.cycle();
@@ -364,8 +363,8 @@ impl CPU {
         let addr = as_address(l, m);
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => self.reg.x, //TODO: have +1 cycle?
-            IndexRegister::Y => self.reg.y, //TODO: have +1 cycle?
+            IndexRegister::X => self.reg.x, // Note: does NOT add +1 cycle
+            IndexRegister::Y => self.reg.y, // Note: does NOT add +1 cycle
         } as u16;
         // if (addr & 0xff) + delta > 0xff {
         //     self.cycle();

@@ -87,8 +87,6 @@ impl NESFile {
         self.header.flags7 & 0x0c == 0x08
     }
 
-    // TODO? move these functions to NESFile instead?
-
     /// Nametable layout according to byte 6 of the header
     ///
     /// - `0`: vertical arrangement (horizontal mirror) / mapper controlled

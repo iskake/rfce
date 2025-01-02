@@ -12,7 +12,7 @@ pub trait Memory {
     fn write(&mut self, addr: u16, val: u8) -> ();
 }
 
-// TODO: create a proper data types to handle generic memory for cartridges and all that good stuff
+// "Dummy Mapper", used as last resort if mapper does not exist.
 type DummyMapper = [u8; MAPPER_SPACE];
 
 impl Memory for DummyMapper {
@@ -25,7 +25,6 @@ impl Memory for DummyMapper {
     }
 }
 
-// TODO: ???
 impl Mapper for DummyMapper {
     fn read_chr(&self, _addr: u16) -> u8 {
         0xff

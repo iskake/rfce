@@ -42,9 +42,9 @@ impl NROMMapper {
         }
 
         println!("NROM with:");
-        println!("  PRG-ROM SIZE: {}", prg_rom_size);
-        println!("  PRG-RAM SIZE: {}", prg_ram_size);
-        println!("  CHR-ROM SIZE: {}", chr_rom_size);
+        println!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
+        println!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
+        println!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
         println!("  Nametable mirroring: {} ({} arrangement)",
             if nametable_v_mirror { "vertical" } else { "horizontal" },
             if nametable_v_mirror { "horizontal" } else { "vertical" }
@@ -52,7 +52,7 @@ impl NROMMapper {
         println!();
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
-        let prg_ram: Vec<u8> = vec![0; prg_ram_size];  // TODO
+        let prg_ram = vec![0; prg_ram_size];
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
 
         NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
@@ -71,7 +71,6 @@ impl NROMMapper {
 impl Memory for NROMMapper {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            // TODO: CHR-ROM?
             0x6000..=0x7fff => {
                 // TODO: handle mirroring/no ram
                 self.prg_ram[(addr - 0x6000) as usize]

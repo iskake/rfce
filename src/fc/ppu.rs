@@ -89,7 +89,6 @@ impl PPU {
     }
 
     pub fn reset(&mut self) -> () {
-        // TODO
         self.reg.control = 0x00.into();
         self.reg.mask = 0x00.into();
         self.reg.write_toggle = false;
@@ -107,10 +106,7 @@ impl PPU {
     }
 
     pub(crate) fn is_vblank(&self) -> bool {
-        // !!!TEMPORARY!!!
-        // TODO: make this back to the original
-        // self.reg.status.vblank
-        self.scanline > 240 && self.scanline < 260
+        self.reg.status.vblank
     }
 
     pub(crate) fn should_do_nmi(&self) -> bool {
@@ -234,7 +230,7 @@ impl PPU {
             ADDRESS_PPUADDR   => 0x00, //self.reg.io_bus,
             ADDRESS_PPUDATA   => 0x00, //self.read_ppudata(),
             ADDRESS_OAMDMA    => 0x00, //self.reg.io_bus,
-            _ => todo!(),
+            _ => unreachable!(),
         }
     }
 
@@ -253,7 +249,7 @@ impl PPU {
             ADDRESS_PPUADDR   => self.reg.io_bus,
             ADDRESS_PPUDATA   => self.read_ppudata(mem),
             ADDRESS_OAMDMA    => self.reg.io_bus,
-            _ => todo!(),
+            _ => unreachable!(),
         }
     }
 
@@ -268,7 +264,7 @@ impl PPU {
             ADDRESS_PPUADDR   => { self.reg.io_bus = val; self.write_ppuaddr(val)},
             ADDRESS_PPUDATA   => { self.reg.io_bus = val; self.write_ppudata(val, mem)},
             ADDRESS_OAMDMA    => { self.reg.io_bus = val; self.write_oamdma(val)},
-            _ => todo!(),
+            _ => unreachable!(),
         }
     }
 
@@ -383,7 +379,6 @@ impl PPU {
         self.reg.addr_bus = self.reg.v;
     }
 
-    // TODO: chandle in cpu?
     pub fn write_oamdma(&mut self, val: u8) {
         self.reg.oam_dma = val;
         println!("Wrote ${val:02x} to OAMDMA (${ADDRESS_OAMDMA:04x})",);
@@ -594,7 +589,7 @@ impl From<u8> for PPUControl {
             spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
             bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
             sprites_large:    val.test_bit(5),
-            // ppu_master_slave: todo!(),
+            // ppu_master_slave: val.test_bit(6),
             nmi_enable:       val.test_bit(7),
         }
     }
