@@ -183,28 +183,18 @@ impl Debugger {
     fn examine(&self, mem_type: &str, addr: &str) -> Result<(), String> {
         match mem_type {
             "c" | "cpu" => {
-                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let from_addr = (try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_nocycle(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
             "p" | "ppu" => {
-                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let from_addr = (try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_ppu(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
             _ => Err(String::from(format!("Invalid memory type: `{mem_type}`")))
-        }
-    }
-
-    fn try_parse_hex(val: &str) -> Result<u16, String> {
-        if !val.starts_with("$") && !val.starts_with("0x") {
-            Err(String::from("Address must be prefixed with `$` or `0x`"))
-        } else if let Ok(addr) = bits::parse_hex(val) {
-            Ok(addr)
-        } else {
-            Err(String::from("Could not parse the provided address as a 16 bit hex number."))
         }
     }
 
@@ -367,5 +357,15 @@ impl Debugger {
         } else {
             Err(String::from(format!("Breakpoint does not exist: {breakpoint}")))
         }
+    }
+}
+
+fn try_parse_hex(val: &str) -> Result<u16, String> {
+    if !val.starts_with("$") && !val.starts_with("0x") {
+        Err(String::from("Address must be prefixed with `$` or `0x`"))
+    } else if let Ok(addr) = bits::parse_hex(val) {
+        Ok(addr)
+    } else {
+        Err(String::from("Could not parse the provided address as a 16 bit hex number."))
     }
 }

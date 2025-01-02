@@ -1,6 +1,6 @@
 use std::{env, io::Error};
 
-use gui::Gui;
+// use gui::Gui;
 
 use crate::fc::dbg::Debugger;
 

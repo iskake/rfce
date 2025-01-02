@@ -150,10 +150,11 @@ impl CPU {
     }
 
     pub fn handle_nmi(&mut self) -> () {
+        println!("NMI");
+
         self.push(self.reg.pc.msb()); // +2 cycles
         self.push(self.reg.pc.lsb()); // +2 cycles
 
-        // TODO? mesen pushes different value despite same p?
         self.push(self.reg.p.into()); // +2 cycles
 
         let l = self.read_addr_nocycle(NMI_VECTOR);
@@ -597,7 +598,6 @@ impl CPU {
 
         // Interrupt handling
         if self.ppu.should_do_nmi() && !self.reg.nmi {
-            println!("NMI");
             self.handle_nmi();
         } else if self.reg.nmi && !self.ppu.nmi_enable() {
             self.reg.nmi = false;

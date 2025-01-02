@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use imgui::Context;
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color, render::Canvas, video::Window, Sdl, VideoSubsystem};
+// use imgui::Context;
+use sdl2::{event::Event, keyboard::Keycode, pixels::Color, render::Canvas, video::Window, Sdl, /* VideoSubsystem */};
 
 pub struct Gui {
     sdl_context: Sdl,
-    video_subsystem: VideoSubsystem,
+    // video_subsystem: VideoSubsystem,
     // window: Window,
     canvas: Canvas<Window>,
 }
@@ -21,13 +21,13 @@ impl Gui {
             .build()
             .unwrap();
 
-        let mut canvas = window.into_canvas().build().unwrap();
+        let canvas = window.into_canvas().build().unwrap();
 
-        let mut imgui = Context::create();
+        // let mut imgui = Context::create();
 
         Gui {
             sdl_context,
-            video_subsystem,
+            // video_subsystem,
             canvas,
         }
     }

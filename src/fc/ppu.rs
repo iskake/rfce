@@ -10,9 +10,10 @@ use crate::bits::Bitwise;
 use super::mem::MemMap;
 
 pub const VRAM_SIZE: usize = NAMETABLE_SIZE * 2;
-const PATTERN_TABLE_SIZE: usize = 0x1000;
+
 const NAMETABLE_SIZE: usize = 0x0400;
-const NAMETABLE_ATTRIBUTE_TABLE_SIZE: usize = 64;
+const ATTRIBUTE_TABLE_SIZE: usize = 64;
+const PATTERN_TABLE_SIZE: u16 = 0x1000;
 
 const OAM_SIZE: usize = 64;
 const SPRITE_SIZE: usize = 4;
@@ -49,7 +50,7 @@ pub struct PPU {
     scanline: u32,
     frame: u64,
     // ??vvv
-    frame_buf: Vec<u8>,
+    _frame_buf: Vec<u8>,
     nametable_buf: Vec<u8>,
 }
 
@@ -64,7 +65,7 @@ impl PPU {
             cycle: 0,
             scanline: 0,
             frame: 0,
-            frame_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * PIXEL_SIZE],
+            _frame_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * PIXEL_SIZE],
             nametable_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
         }
     }
@@ -275,10 +276,10 @@ impl PPU {
         self.oam[dst as usize] = val;
     }
 
-    fn add_scanline_temp(&self, mem: &mut MemMap) -> () {
-        for i in 0..=255 {
+    fn add_scanline_temp(&self, _mem: &mut MemMap) -> () {
+        for _i in 0..=255 {
             // todo!();
-            // self.read_addr(, mem)
+            // self.read_addr(0x2000 + i, mem); // ???
         }
     }
 
@@ -315,10 +316,11 @@ impl PPU {
     }
 
     fn read_oamdata(&self) -> u8 {
+        let _val = self.reg.oam_data;
         todo!("read_oamdata")
     }
 
-    fn write_oamdata(&mut self, val: u8) {
+    fn write_oamdata(&mut self, _val: u8) {
         todo!("write_oamdata")
     }
 
@@ -392,7 +394,7 @@ impl PPU {
         let img_h = 2 * PICTURE_HEIGHT;
 
         for nametable_num in 0..4 {
-            for nametable_byte in 0..(NAMETABLE_SIZE - NAMETABLE_ATTRIBUTE_TABLE_SIZE /* * 4 */) {
+            for nametable_byte in 0..(NAMETABLE_SIZE - ATTRIBUTE_TABLE_SIZE /* * 4 */) {
                 let nametable_x = nametable_byte % 32;
                 let nametable_y = nametable_byte >> 5;
 
@@ -589,8 +591,8 @@ impl From<u8> for PPUControl {
         PPUControl {
             nametable_addr:   ((val & 0b11) as u16) << 10 | 0x2000,
             vram_addr_inc:    if val.test_bit(2) {32} else {1},
-            spr_pattern_addr: if val.test_bit(3) { 0x1000 } else { 0x0000 },
-            bg_pattern_addr:  if val.test_bit(4) { 0x1000 } else { 0x0000 },
+            spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
+            bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
             sprites_large:    val.test_bit(5),
             // ppu_master_slave: todo!(),
             nmi_enable:       val.test_bit(7),
