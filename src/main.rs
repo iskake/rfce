@@ -1,4 +1,4 @@
-use std::{env, io::Error};
+use std::env;
 
 // use gui::Gui;
 
@@ -8,21 +8,22 @@ pub mod bits;
 pub mod fc;
 pub mod gui;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     if let Some(filename) = args.get(1) {
         let mut debugger = Debugger::new();
-        debugger.load_file(filename)?;
-        debugger.run();
+        match debugger.load_file(filename) {
+            Ok(_) => Ok(debugger.run()),
+            Err(e) => Err(format!("{} (filename: '{}')", e, filename)),
+        }
     } else {
         println!("No nes file provided.\n");
-        println!("Usage: rfce <file>\n");
+        println!("Usage: rfce <file>");
+        Ok(())
     }
 
     // Temp., todo, etc.
     // let mut gui = Gui::new();
     // gui.run_forever();
-
-    Ok(())
 }
