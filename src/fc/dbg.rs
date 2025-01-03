@@ -1,5 +1,8 @@
 use std::collections::HashSet;
 use std::io::{self, Error, Write};
+use std::path::Path;
+
+use image::RgbImage;
 
 use crate::bits;
 
@@ -99,7 +102,18 @@ impl Debugger {
             ["cv"] => {
                 // TODO: handle breakpoints as well?
                 self.fc.run_to_vblank();
-                self.fc.cpu.ppu.generate_nametables_image_temp(&mut self.fc.cpu.mem);
+
+                let nametable_buf = self.fc.cpu.ppu.generate_nametables_image_temp(&mut self.fc.cpu.mem);
+                // TODO: remove this so we don't need 100 extra dependencies...
+                let img_w = 256;
+                let img_h = 240;
+                let img: RgbImage = RgbImage::from_raw(img_w * 2, img_h * 2, nametable_buf.to_vec()).unwrap();
+                img.save(Path::new("nametables.png")).unwrap();
+
+                let frame_buf = self.fc.cpu.ppu.get_frame_buf();
+                let img: RgbImage = RgbImage::from_raw(img_w, img_h, frame_buf.to_vec()).unwrap();
+                img.save(Path::new("frame.png")).unwrap();
+
                 self.fc.cpu.print_state();
                 Ok(())
             }

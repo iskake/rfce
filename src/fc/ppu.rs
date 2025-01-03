@@ -2,7 +2,6 @@ mod tile;
 
 use std::path::Path;
 
-use image::RgbImage;
 use tile::Tile;
 
 use crate::bits::Bitwise;
@@ -394,10 +393,13 @@ impl PPU {
 
     pub fn write_oamdma(&mut self, val: u8) {
         self.reg.oam_dma = val;
-        println!("Wrote ${val:02x} to OAMDMA (${ADDRESS_OAMDMA:04x})",);
     }
 
-    pub(crate) fn generate_nametables_image_temp(&mut self, mem: &MemMap) -> () {
+    pub(crate) fn get_frame_buf(&self) -> &[u8] {
+        &self.frame_buf
+    }
+
+    pub(crate) fn generate_nametables_image_temp(&mut self, mem: &MemMap) -> &[u8] {
         let img_w = 2 * PICTURE_WIDTH;//8*2;
         let img_h = 2 * PICTURE_HEIGHT;
 
@@ -444,10 +446,7 @@ impl PPU {
                 }
             }
         }
-
-        // TODO: remove this so we don't need 100 extra dependencies...
-        let img: RgbImage = RgbImage::from_raw(img_w as u32, img_h as u32, self.nametable_buf.to_vec()).unwrap();
-        img.save(Path::new("nametables.png")).unwrap();
+        &self.nametable_buf
     }
 
     /// Get the index into the attribute table corresponding to the specified x/y coordinate (0-31 / 0-29)
