@@ -5,11 +5,11 @@ pub struct Tile<'a> {
 }
 
 impl<'a> Tile<'a> {
-    pub fn from_slice(buf: &[u8]) -> Tile {
+    pub fn from_slice(buf: &[u8]) -> Option<Tile> {
         if buf.len() == 16 {
-            Tile { bytes: buf }
+            Some(Tile { bytes: buf })
         } else {
-            panic!();
+            None
         }
     }
 

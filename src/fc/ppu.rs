@@ -20,8 +20,6 @@ const SPRITE_SIZE: usize = 4;
 const TILE_SIZE: u16 = 16;
 const PALETTE_RAM_SIZE: usize = 0x20;
 
-const PIXEL_SIZE: usize = 1;    // ??
-
 const PICTURE_WIDTH:  usize = 256;
 const PICTURE_HEIGHT: usize = 240;
 
@@ -50,8 +48,8 @@ pub struct PPU {
     scanline: u32,
     frame: u64,
     // ??vvv
-    _frame_buf: Vec<u8>,
-    nametable_buf: Vec<u8>,
+    frame_buf: [u8; PICTURE_HEIGHT * PICTURE_WIDTH * 3],
+    nametable_buf: [u8; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3],
 }
 
 impl PPU {
@@ -65,8 +63,8 @@ impl PPU {
             cycle: 0,
             scanline: 0,
             frame: 0,
-            _frame_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * PIXEL_SIZE],
-            nametable_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
+            frame_buf: [0; PICTURE_HEIGHT * PICTURE_WIDTH * 3],
+            nametable_buf: [0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
         }
     }
 
@@ -117,6 +115,10 @@ impl PPU {
         self.reg.control.nmi_enable
     }
 
+    pub(crate) fn _just_finished_rendering(&self) -> bool {
+        self.scanline == 240
+    }
+
     pub(crate) fn oamdma(&self) -> u8 {
         self.reg.oam_dma
     }
@@ -132,28 +134,41 @@ impl PPU {
             match self.scanline {
                 0..=239 => {    // rendering (visible scanlines)
                     // TODO
-                    match self.cycle {
-                        0 => {},         // idle cycle
-                        1..=256 => {     // vram fetch/update
-                            // Fetch data. Each byte takes 2 cycles
-                            // let c = (self.cycle - 1) % 8;
-                            // dbg!(c);
-                            // match c {
-                            //     1 => {},    // nametable byte
-                            //     3 => {},    // attribute table byte
-                            //     5 => {},    // pattern table tile low
-                            //     7 => {},    // pattern table tile high (+8 bytes from pattern table tile low)
-                            //     _ => {},
-                            // }
-                            if self.cycle == 256 {
-                                // TODO: actual fetch+write bytes instead of full scanline
-                                self.add_scanline_temp(mem);
-                            }
-                        },
-                        257..=320 => {}, // fetch tile data for sprites on the next scanline
-                        321..=336 => {}, // fetch tile data for first two tiles for the next scanline
-                        337..=340 => {}, // fetch two bytes
-                        _ => unreachable!(),
+                    if !self.reg.mask.bg_enable {
+                        // Rendering disabled
+                        let x = self.cycle as usize;
+                        let y = self.scanline as usize;
+                        let idx = y * PICTURE_HEIGHT + x;
+
+                        self.frame_buf[idx * 3] = 0x00;
+                        self.frame_buf[idx * 3 + 1] = 0x00;
+                        self.frame_buf[idx * 3 + 2] = 0x00;
+
+                        self.frame_buf.iter_mut().for_each(|x| *x = 0);
+                    } else {
+                        match self.cycle {
+                            0 => {},         // idle cycle
+                            1..=256 => {     // vram fetch/update
+                                // Fetch data. Each byte takes 2 cycles
+                                // let c = (self.cycle - 1) % 8;
+                                // dbg!(c);
+                                // match c {
+                                //     1 => {},    // nametable byte
+                                //     3 => {},    // attribute table byte
+                                //     5 => {},    // pattern table tile low
+                                //     7 => {},    // pattern table tile high (+8 bytes from pattern table tile low)
+                                //     _ => {},
+                                // }
+                                if self.cycle == 256 {
+                                    // TODO: actual fetch+write bytes instead of full scanline
+                                    self.add_scanline_temp(mem);
+                                }
+                            },
+                            257..=320 => {}, // fetch tile data for sprites on the next scanline
+                            321..=336 => {}, // fetch tile data for first two tiles for the next scanline
+                            337..=340 => {}, // fetch two bytes
+                            _ => unreachable!(),
+                        }
                     }
                 },
                 240 => {},      // idle (post-render scanline)
@@ -393,16 +408,21 @@ impl PPU {
                 let nametable_x = nametable_byte % 32;
                 let nametable_y = nametable_byte >> 5;
 
-                let i_: u16 = nametable_byte as u16;
+                let i = nametable_byte as u16;
 
                 let nametable_addr = self.reg.control.nametable_addr;
-                let tile_idx = self.read_addr(i_ + nametable_addr + (nametable_num * NAMETABLE_SIZE) as u16, mem);
+                let tile_addr = i + nametable_addr + (nametable_num * NAMETABLE_SIZE) as u16;
+
+                let tile_idx = self.read_addr(tile_addr, mem);
                 let tile_ptr = tile_idx as u16 * TILE_SIZE;
 
                 let bg_addr = self.reg.control.bg_pattern_addr;
-                let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr+TILE_SIZE).map(|x| mem.mapper.read_chr(x + bg_addr)).collect();
+                let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr+TILE_SIZE)
+                    .map(|x| mem.mapper.read_chr(x + bg_addr))
+                    .collect();
 
-                let tile = Tile::from_slice(tile_bytes.as_slice());
+                assert_eq!(tile_bytes.len(), TILE_SIZE as usize);
+                let tile = Tile::from_slice(tile_bytes.as_slice()).unwrap();
 
                 for j in 0..8 {
                     for k in 0..8 {
@@ -414,10 +434,6 @@ impl PPU {
                         let ntbl_num_y_coord = PICTURE_HEIGHT * ((nametable_num & 0b10) >> 1);
                         let idx = img_w * (pixel_y + ntbl_num_y_coord) + (pixel_x + ntbl_num_x_coord);
 
-                        // if (idx * 3) >= img_w * img_h * 3 {
-                        //     dbg!(idx);
-                        //     dbg!(idx*3);
-                        // }
                         let pal_idx = self.pal_idx_from_attr_table(nametable_num, nametable_x, nametable_y, mem);
 
                         let color = self.pixel_color_at(pal_idx, pixel_color, false);
@@ -432,7 +448,7 @@ impl PPU {
         }
 
         // TODO: remove this so we don't need 100 extra dependencies...
-        let img: RgbImage = RgbImage::from_raw(img_w as u32, img_h as u32, self.nametable_buf.clone()).unwrap();
+        let img: RgbImage = RgbImage::from_raw(img_w as u32, img_h as u32, self.nametable_buf.to_vec()).unwrap();
         img.save(Path::new("nametables.png")).unwrap();
     }
 
