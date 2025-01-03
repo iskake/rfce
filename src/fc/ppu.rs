@@ -143,8 +143,6 @@ impl PPU {
                         self.frame_buf[idx * 3] = 0x00;
                         self.frame_buf[idx * 3 + 1] = 0x00;
                         self.frame_buf[idx * 3 + 2] = 0x00;
-
-                        self.frame_buf.iter_mut().for_each(|x| *x = 0);
                     } else {
                         match self.cycle {
                             0 => {},         // idle cycle
