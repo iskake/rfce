@@ -1,4 +1,5 @@
 use cart::NESFile;
+use log::warn;
 use mapper::{Mapper, NROMMapper};
 
 pub mod cart;
@@ -91,8 +92,8 @@ impl MemMap {
                 }
             }
             mapper::MapperType::UNKNOWN(i) => {
-                println!("WARNING: UNKNOWN MAPPER ({i})");
-                println!("as a fallback, RAM is used as a mapper (r/w)");
+                warn!("WARNING: UNKNOWN MAPPER ({i})");
+                warn!("as a fallback, RAM is used as a mapper (r/w)");
 
                 let buf = nesfile.data.clone();
 

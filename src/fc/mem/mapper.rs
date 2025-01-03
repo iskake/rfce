@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::fc::{ppu, NESFile};
 
 use super::Memory;
@@ -41,15 +43,14 @@ impl NROMMapper {
             unimplemented!("NROM trainer handling");
         }
 
-        println!("NROM with:");
-        println!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
-        println!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
-        println!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
-        println!("  Nametable mirroring: {} ({} arrangement)",
+        info!("NROM with:");
+        info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
+        info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
+        info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
+        info!("  Nametable mirroring: {} ({} arrangement)\n",
             if nametable_v_mirror { "vertical" } else { "horizontal" },
             if nametable_v_mirror { "horizontal" } else { "vertical" }
         );
-        println!();
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let prg_ram = vec![0; prg_ram_size];

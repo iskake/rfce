@@ -63,7 +63,6 @@ impl NESFile {
     pub fn from_vec(mut bytes: Vec<u8>) -> Result<NESFile, Error> {
         if bytes[0..4] == NES_FILE_IDENTIFIER {
             let data = bytes.split_off(16);
-            // println!("{}", bytes.len());
             let header = NESFileHeader::from_slice(&bytes[4..16]);
 
             Ok(NESFile {

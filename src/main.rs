@@ -9,6 +9,8 @@ pub mod fc;
 pub mod gui;
 
 fn main() -> Result<(), String> {
+    env_logger::init();
+
     let args: Vec<String> = env::args().collect();
 
     if let Some(filename) = args.get(1) {

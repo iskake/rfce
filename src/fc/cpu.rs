@@ -1,4 +1,5 @@
 use inst::*;
+use log::{debug, info};
 
 use crate::bits::{as_address, Addr, Bitwise};
 use crate::fc::mem::*;
@@ -150,7 +151,7 @@ impl CPU {
     }
 
     pub fn handle_nmi(&mut self) -> () {
-        println!("NMI");
+        debug!("NMI");
 
         self.push(self.reg.pc.msb()); // +2 cycles
         self.push(self.reg.pc.lsb()); // +2 cycles
@@ -167,7 +168,7 @@ impl CPU {
     }
 
     fn handle_oam_dma(&mut self) {
-        println!("OAM DMA");
+        debug!("OAM DMA");
 
         let src_msb = self.ppu.oamdma();
         for dst in 0..=255u8 {
@@ -612,7 +613,7 @@ impl CPU {
 
             if after && after != before {
                 let end = start.elapsed();
-                println!("Time: {:.2?}", end);
+                info!("Time: {:.2?}", end);
                 break;
             }
         }
@@ -625,16 +626,16 @@ impl CPU {
 
         let cycles_after = self.cycles;
 
-        println!("took {} cycles", cycles_after - cycles_before);
+        debug!("took {} cycles", cycles_after - cycles_before);
         // let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
         // self.run_inst(inst); // n cycles
         // let cycles_after = self.cycles;
         // print!(" inst {inst:?} (op: ${op:02x}) ");
         // if cycles_after - cycles_before == 1 {
-        //     println!("took 2 cycles (added one extra)");
+        //     debug!("took 2 cycles (added one extra)");
         //     self.cycle();
         // } else {
-        //     println!("took {} cycles", cycles_after - cycles_before);
+        //     debug!("took {} cycles", cycles_after - cycles_before);
         // }
     }
 

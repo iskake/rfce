@@ -1,7 +1,6 @@
 mod tile;
 
-use std::path::Path;
-
+use log::debug;
 use tile::Tile;
 
 use crate::bits::Bitwise;
@@ -172,12 +171,12 @@ impl PPU {
                 241..=260 => {  // vblank
                     if self.cycle == 1 && self.scanline == 241 {
                         self.reg.status.vblank = true;
-                        println!("enabled vblank")
+                        debug!("enabled vblank")
                     }
                 },
                 261 => {     // dummy scanline (pre-render scanline)
                     if self.cycle == 1 {
-                        println!("disabled vblank");
+                        debug!("disabled vblank");
                         self.reg.status.vblank = false;
                     }
                 },
@@ -294,13 +293,13 @@ impl PPU {
     fn write_ppuctrl(&mut self, val: u8) -> () {
         // TODO: check for cycles < 29658 before allowing writes?
         self.reg.control = val.into();
-        println!("Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x})");
+        debug!("Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x})");
     }
 
     fn write_ppumask(&mut self, val: u8) {
         // TODO: "writes ignored until first pre-render scanline"
         self.reg.mask = val.into();
-        println!("Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x})");
+        debug!("Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x})");
     }
 
     fn read_ppustatus(&mut self) -> u8 {
@@ -312,7 +311,7 @@ impl PPU {
         self.reg.status.vblank = false;
         self.reg.write_toggle = false;
 
-        println!("Read ${val:02x} from PPUSTATUS (${ADDRESS_PPUSTATUS:04x})");
+        debug!("Read ${val:02x} from PPUSTATUS (${ADDRESS_PPUSTATUS:04x})");
 
         val
     }
@@ -320,7 +319,7 @@ impl PPU {
     fn write_oamaddr(&mut self, val: u8) {
         // TODO: "OAMADDR precautions"
         self.reg.oam_addr = val;
-        println!("Wrote ${val:02x} to OAMADDR (${ADDRESS_OAMADDR:04x})");
+        debug!("Wrote ${val:02x} to OAMADDR (${ADDRESS_OAMADDR:04x})");
     }
 
     fn read_oamdata(&self) -> u8 {
@@ -339,7 +338,7 @@ impl PPU {
             self.reg.t = (((val & 0x7f) as u16) << 8) | self.reg.t & 0xff;
         }
 
-        println!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {})", self.reg.write_toggle);
+        debug!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {})", self.reg.write_toggle);
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
@@ -356,7 +355,7 @@ impl PPU {
             self.reg.t = (self.reg.t & 0x7f00 | (val as u16)) & 0x3fff; // ?
         }
 
-        println!("Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})", self.reg.write_toggle);
+        debug!("Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})", self.reg.write_toggle);
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
@@ -371,10 +370,10 @@ impl PPU {
         let addr = self.reg.v;
 
         self.reg.read_buf = self.read_addr(addr, mem);
-        println!("Read ${old_val:02x} from PPUDATA (${ADDRESS_PPUDATA:04x}) new addr: ${addr:04x}",);
+        debug!("Read ${old_val:02x} from PPUDATA (${ADDRESS_PPUDATA:04x}) new addr: ${addr:04x}",);
 
         let delta = self.reg.control.vram_addr_inc;
-        println!("delta: {}", delta);
+        debug!("delta: {}", delta);
         self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
         self.reg.addr_bus = self.reg.v;
 
@@ -384,7 +383,7 @@ impl PPU {
     fn write_ppudata(&mut self, val: u8, mem: &mut MemMap) {
         let addr = self.reg.v;
         self.write_addr(addr, val, mem);
-        println!("Wrote ${val:02x} to PPUDATA (${ADDRESS_PPUDATA:04x}) addr: ${addr:04x}",);
+        debug!("Wrote ${val:02x} to PPUDATA (${ADDRESS_PPUDATA:04x}) addr: ${addr:04x}",);
 
         let delta = self.reg.control.vram_addr_inc;
         self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
@@ -393,6 +392,7 @@ impl PPU {
 
     pub fn write_oamdma(&mut self, val: u8) {
         self.reg.oam_dma = val;
+        debug!("Wrote ${val:02x} to OAMDMA (${ADDRESS_OAMDMA:04x})",);
     }
 
     pub(crate) fn get_frame_buf(&self) -> &[u8] {

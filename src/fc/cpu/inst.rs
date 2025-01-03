@@ -145,6 +145,7 @@ impl std::fmt::Display for Inst {
     }
 }
 
+use log::error;
 use AddrMode::*;
 use IndexRegister::*;
 use Inst::*;
@@ -467,7 +468,7 @@ fn brk(cpu: &mut CPU) -> () {
 }
 
 fn ill(cpu: &mut CPU, opcode: u8) -> () {
-    println!("just hit illegal instruction... goodbye world");
+    error!("just hit illegal instruction... goodbye world");
     cpu.print_state();
     panic!("ILLEGAL INSTRUCTION ${:02x}", opcode);
 }
