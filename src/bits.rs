@@ -144,9 +144,6 @@ mod test {
         assert_eq!(0xff.test_bit(7), true);
         assert_eq!(0x7fffu16.test_bit(15), false);
         assert_eq!((u128::MAX - (1 << 127)).test_bit(127), false);
-        println!("{:b}", i128::MIN);
-        let a = 0b10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000u128 as i128;
-        println!("{}", (a & (1 << 127)) == (1 << 127));
         assert_eq!(i128::MIN.test_bit(127), true);
     }
 
