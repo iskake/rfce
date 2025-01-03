@@ -99,6 +99,7 @@ impl Debugger {
             ["cv"] => {
                 // TODO: handle breakpoints as well?
                 self.fc.run_to_vblank();
+                self.fc.cpu.ppu.generate_nametables_image_temp(&mut self.fc.cpu.mem);
                 self.fc.cpu.print_state();
                 Ok(())
             }

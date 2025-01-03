@@ -613,7 +613,6 @@ impl CPU {
             if after && after != before {
                 let end = start.elapsed();
                 println!("Time: {:.2?}", end);
-                self.ppu.generate_nametables_image_temp(&mut self.mem);
                 break;
             }
         }
