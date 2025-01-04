@@ -95,7 +95,7 @@ impl Debugger {
                     self.fc.cpu.fetch_and_run();
 
                     let cpu_cycles_after = self.fc.cpu.cycles();
-                    // let ppu_cycles_after = self.fc.cpu.ppu.cycles();
+                    let ppu_cycles_after = self.fc.cpu.ppu.cycles();
 
                     if self.fc.cpu.ppu.is_vblank() && !prev_vbl_check {
                         let end = start.elapsed();
@@ -108,7 +108,7 @@ impl Debugger {
                         let addr_break = Breakpoint::Address(self.fc.cpu.pc());
                         let scan_break = Breakpoint::Scanline(self.fc.cpu.ppu.scanlines());
                         let cpu_cyc_break = Breakpoint::CPUCycle(cpu_cycles_after);
-                        // let ppu_cyc_breaks: HashSet<Breakpoint> = ((ppu_cycles_before+6)..=ppu_cycles_after).map(|c| Breakpoint::PPUCycle(c)).collect(); // todo because of wraparound...
+                        let ppu_cyc_break = Breakpoint::PPUCycle(ppu_cycles_after);
 
                         if self.breakpoints.contains(&addr_break) {
                             println!("Hit breakpoint {}", addr_break);
@@ -119,7 +119,11 @@ impl Debugger {
                             self.fc.cpu.print_state();
                             break;
                         } else if self.breakpoints.contains(&cpu_cyc_break) {
-                            println!("Hit breakpoint {}", scan_break);
+                            println!("Hit breakpoint {}", cpu_cyc_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&ppu_cyc_break) {
+                            println!("Hit breakpoint {}", ppu_cyc_break);
                             self.fc.cpu.print_state();
                             break;
                         }
@@ -293,7 +297,7 @@ impl Debugger {
                 }
             },
             "p" | "ppu" | "ppucycle" => {
-                println!("INFO: breakpoints for ppu cycles currently do not work");
+                println!("INFO: breakpoints for ppu cycles currently ignores any cycle it does not exactly land on");
                 // Add a breakpoint for a (ppu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::PPUCycle(cycle))

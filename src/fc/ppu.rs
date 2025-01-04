@@ -102,6 +102,14 @@ impl PPU {
         self.frame = 0;
     }
 
+    pub(crate) fn cycles(&self) -> u32 {
+        self.cycle
+    }
+
+    pub(crate) fn scanlines(&self) -> u32 {
+        self.scanline
+    }
+
     pub(crate) fn is_vblank(&self) -> bool {
         self.reg.status.vblank
     }
