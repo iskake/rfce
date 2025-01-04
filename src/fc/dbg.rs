@@ -3,6 +3,7 @@ use std::io::{self, Error, Write};
 use std::path::Path;
 
 use image::RgbImage;
+use log::info;
 
 use crate::bits;
 
@@ -11,24 +12,24 @@ use super::FC;
 #[derive(PartialEq, Eq, Hash)]
 enum Breakpoint {
     Address(u16),
-    CPUCycle(u64),  // TODO
-    PPUCycle(u64),  // TODO
-    Scanline(u16),  // TODO
+    CPUCycle(u64),
+    PPUCycle(u32),
+    Scanline(u32),
 }
 
 impl std::fmt::Display for Breakpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Breakpoint::Address(addr) => write!(f, "at address ${addr:04x}"),
-            Breakpoint::CPUCycle(cycle) => write!(f, "at CPU cycle {cycle}"),
-            Breakpoint::PPUCycle(cycle) => write!(f, "at PPU cycle {cycle}"),
-            Breakpoint::Scanline(scanline) => write!(f, "at scanline {scanline} hit"),
+            Breakpoint::CPUCycle(cycle) => write!(f, "CPU cycle {cycle}"),
+            Breakpoint::PPUCycle(cycle) => write!(f, "PPU cycle {cycle}"),
+            Breakpoint::Scanline(scanline) => write!(f, "scanline {scanline} hit"),
         }
     }
 }
 
 pub struct Debugger {
-    fc: FC,
+    fc: FC, // TODO? use Rc<RefCell<FC>> so we can use the debugger inside of the GUI?
     last_input: String,
     breakpoints: HashSet<Breakpoint>,
     ed_mode: bool, // :)
@@ -77,7 +78,7 @@ impl Debugger {
     }
 
     fn handle_input(&mut self, input: &mut String) -> Result<(), String> {
-        if *input == "\n" || *input == "\u{1b}[A" {
+        if *input == "\n" {
             *input = self.last_input.clone();
         } else {
             self.last_input = input.clone();
@@ -87,14 +88,41 @@ impl Debugger {
 
         match parts[..] {
             ["c"] => {
+                let mut start = std::time::Instant::now();
+                let mut prev_vbl_check = false;
                 loop {
                     // Continue running
                     self.fc.cpu.fetch_and_run();
-                    let addr_break = Breakpoint::Address(self.fc.cpu.pc());
-                    if self.breakpoints.contains(&addr_break) {
-                        println!("Hit breakpoint {}", addr_break);
-                        self.fc.cpu.print_state();
-                        break;
+
+                    let cpu_cycles_after = self.fc.cpu.cycles();
+                    // let ppu_cycles_after = self.fc.cpu.ppu.cycles();
+
+                    if self.fc.cpu.ppu.is_vblank() && !prev_vbl_check {
+                        let end = start.elapsed();
+                        info!("Time: {:.2?}", end);
+                        start = std::time::Instant::now();
+                    }
+                    prev_vbl_check = self.fc.cpu.ppu.is_vblank();
+
+                    if !self.breakpoints.is_empty() {
+                        let addr_break = Breakpoint::Address(self.fc.cpu.pc());
+                        let scan_break = Breakpoint::Scanline(self.fc.cpu.ppu.scanlines());
+                        let cpu_cyc_break = Breakpoint::CPUCycle(cpu_cycles_after);
+                        // let ppu_cyc_breaks: HashSet<Breakpoint> = ((ppu_cycles_before+6)..=ppu_cycles_after).map(|c| Breakpoint::PPUCycle(c)).collect(); // todo because of wraparound...
+
+                        if self.breakpoints.contains(&addr_break) {
+                            println!("Hit breakpoint {}", addr_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&scan_break) {
+                            println!("Hit breakpoint {}", scan_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&cpu_cyc_break) {
+                            println!("Hit breakpoint {}", scan_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        }
                     }
                 }
                 Ok(())
@@ -253,7 +281,7 @@ impl Debugger {
                 }
             },
             "c" | "cpu" | "cycle" | "cpucycle" => {
-                println!("INFO: breakpoints for cpu cycles currently do not work");
+                println!("INFO: breakpoints for cpu cycles currently ignores any cycle it does not exactly land on");
                 // Add a breakpoint for a (cpu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::CPUCycle(cycle))
@@ -277,7 +305,6 @@ impl Debugger {
                 }
             },
             "s" | "scan" | "line" | "scanline" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
                 // Add a breakpoint for a scanline
                 if let Ok(scanline) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::Scanline(scanline))
@@ -314,7 +341,6 @@ impl Debugger {
                 }
             },
             "c" | "cpu" | "cycle" | "cpucycle" => {
-                println!("INFO: breakpoints for cpu cycles currently do not work");
                 // Add a breakpoint for a (cpu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::CPUCycle(cycle))
@@ -326,7 +352,6 @@ impl Debugger {
                 }
             },
             "p" | "ppu" | "ppucycle" => {
-                println!("INFO: breakpoints for ppu cycles currently do not work");
                 // Add a breakpoint for a (ppu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::PPUCycle(cycle))
@@ -338,7 +363,6 @@ impl Debugger {
                 }
             },
             "s" | "scan" | "line" | "scanline" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
                 // Add a breakpoint for a scanline
                 if let Ok(scanline) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::Scanline(scanline))

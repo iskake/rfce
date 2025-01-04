@@ -131,6 +131,14 @@ impl CPU {
         );
     }
 
+    pub fn pc(&self) -> u16 {
+        self.reg.pc
+    }
+
+    pub(crate) fn cycles(&self) -> u64 {
+        self.cycles
+    }
+
     pub fn init(&mut self) -> () {
         self.ppu.init();
         let l = self.read_addr_nocycle(RESET_VECTOR);
@@ -627,19 +635,5 @@ impl CPU {
         let cycles_after = self.cycles;
 
         debug!("took {} cycles", cycles_after - cycles_before);
-        // let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
-        // self.run_inst(inst); // n cycles
-        // let cycles_after = self.cycles;
-        // print!(" inst {inst:?} (op: ${op:02x}) ");
-        // if cycles_after - cycles_before == 1 {
-        //     debug!("took 2 cycles (added one extra)");
-        //     self.cycle();
-        // } else {
-        //     debug!("took {} cycles", cycles_after - cycles_before);
-        // }
-    }
-
-    pub fn pc(&self) -> u16 {
-        self.reg.pc
     }
 }

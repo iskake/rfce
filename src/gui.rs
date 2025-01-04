@@ -27,7 +27,7 @@ pub struct GUI {
 }
 
 impl GUI {
-    pub fn new() -> Box<GUI> {
+    pub fn new() -> GUI {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -62,7 +62,7 @@ impl GUI {
         let platform = SdlPlatform::new(&mut imgui);
         let renderer = AutoRenderer::new(gl, &mut imgui).unwrap();
 
-        Box::new(GUI {
+        GUI {
             sdl_context,
             imgui,
             _gl_context: gl_context,
@@ -70,28 +70,23 @@ impl GUI {
             platform,
             renderer,
             fc: None,
-        })
+        }
     }
 
-    pub fn from_file(filename: &Path) -> Result<Box<GUI>, std::io::Error> {
+    pub fn from_file(filename: &Path) -> GUI {
         let mut gui = GUI::new();
-        let mut fc = load_rom(filename)?;
-        fc.init();
-        gui.fc = Some(fc);
-        Ok(gui)
+        let fc = load_rom(filename).ok();
+        gui.fc = fc;
+        gui
     }
 
     pub fn run_forever(&mut self) -> () {
         info!("Starting GUI run loop");
-        // self.canvas.clear();
-        // self.canvas.present();
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         let mut i = 0;
         'running: loop {
             i = (i + 1) % 255;
-            // self.canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
-            // self.canvas.clear();
             for event in event_pump.poll_iter() {
                 self.platform.handle_event(&mut self.imgui, &event);
 
@@ -107,17 +102,18 @@ impl GUI {
 
             if let Some(fc) = &mut self.fc {
                 fc.run_to_vblank();
-                let frame = fc.get_frame();
+                let _frame = fc.get_frame(); // TODO....
             }
 
             self.platform
                 .prepare_frame(&mut self.imgui, &self.window, &event_pump);
 
-            self.handle_imgui();
+            let continue_running = self.handle_imgui();
 
             let draw_data = self.imgui.render();
 
             unsafe {
+                self.renderer.gl_context().clear_color(0.0, 0.5, 1.0, 1.0);
                 self.renderer.gl_context().clear(glow::COLOR_BUFFER_BIT);
             }
 
@@ -125,12 +121,15 @@ impl GUI {
 
             // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
             self.window.gl_swap_window();
+
+            if !continue_running {
+                break 'running;
+            }
         }
     }
 
-    fn handle_imgui(&mut self) -> () {
+    fn handle_imgui(&mut self) -> bool {
         let ui = self.imgui.new_frame();
-        // ui.show_demo_window(&mut true);
 
         if let Some(menu_bar) = ui.begin_main_menu_bar() {
             // info!("{:?}", ui.window_size());
@@ -146,17 +145,19 @@ impl GUI {
                     }
                 }
                 if ui.menu_item("Quit") {
-                    exit(0);
+                    return false;
                 }
                 menu.end();
             }
             menu_bar.end();
         }
+        true
     }
 }
 
 fn load_rom(filename: &Path) -> Result<Box<FC>, std::io::Error> {
-    let fc = FC::from_file(filename)?;
+    let mut fc = FC::from_file(filename)?;
+    fc.init();
     Ok(fc)
 }
 
