@@ -785,18 +785,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glow"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e5ea60d70410161c8bf5da3fdfeaa1c72ed2c15f8bbb9d19fe3a4fad085f08"
-dependencies = [
- "js-sys",
- "slotmap",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "half"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1033,7 +1021,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b191cbb795a471d9f9d46cc5f5d43a0afbf9ee43b3ef7b68083e98e4dbe30ad"
 dependencies = [
- "glow 0.14.2",
+ "glow",
  "imgui",
  "memoffset",
 ]
@@ -1786,7 +1774,6 @@ name = "rfce"
 version = "0.1.0"
 dependencies = [
  "env_logger",
- "glow 0.16.0",
  "image",
  "imgui",
  "imgui-glow-renderer",
