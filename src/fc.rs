@@ -1,4 +1,5 @@
 use std::io::Error;
+use std::path::Path;
 
 use mem::MemMap;
 
@@ -32,7 +33,7 @@ impl FC {
         }
     }
 
-    pub fn from_file(filename: &str) -> Result<FC, Error> {
+    pub fn from_file(filename: &Path) -> Result<FC, Error> {
         let nesfile = NESFile::from_file(filename)?;
         let mem = MemMap::from_nesfile(&nesfile);
 
@@ -42,7 +43,7 @@ impl FC {
     }
 
     /// Reads and loads the specified ROM, including initialization.
-    fn load_rom(&mut self, filename: &str) -> Result<(), Error> {
+    pub fn load_rom(&mut self, filename: &Path) -> Result<(), Error> {
         self.cart = Some(NESFile::from_file(filename)?);
 
         self.reset_hard()
@@ -50,7 +51,7 @@ impl FC {
 
     /// "Hard reset" / power cycle the emulator.
     /// This is equivalent to loading the already loaded ROM from a file again.
-    fn reset_hard(&mut self) -> Result<(), Error> {
+    pub fn reset_hard(&mut self) -> Result<(), Error> {
         match &self.cart {
             None => Err(Error::new(std::io::ErrorKind::NotFound, "no ROM loaded")),
             Some(nesfile) => {
@@ -67,11 +68,11 @@ impl FC {
     }
 
     /// "Soft reset" the emulator.
-    fn reset(&mut self) -> () {
+    pub fn reset(&mut self) -> () {
         self.cpu.reset();
     }
 
-    fn init(&mut self) -> () {
+    pub fn init(&mut self) -> () {
         // TODO: all the other initialization things.
         self.cpu.init();
     }

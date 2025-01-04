@@ -1,6 +1,4 @@
-use std::env;
-
-// use gui::Gui;
+use std::{env, path::Path};
 
 use crate::fc::dbg::Debugger;
 
@@ -12,10 +10,9 @@ fn main() -> Result<(), String> {
     env_logger::init();
 
     let args: Vec<String> = env::args().collect();
-
     if let Some(filename) = args.get(1) {
         let mut debugger = Debugger::new();
-        match debugger.load_file(filename) {
+        match debugger.load_file(Path::new(filename)) {
             Ok(_) => Ok(debugger.run()),
             Err(e) => Err(format!("{} (filename: '{}')", e, filename)),
         }
@@ -24,8 +21,4 @@ fn main() -> Result<(), String> {
         println!("Usage: rfce <file>");
         Ok(())
     }
-
-    // Temp., todo, etc.
-    // let mut gui = Gui::new();
-    // gui.run_forever();
 }

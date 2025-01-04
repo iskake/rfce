@@ -45,7 +45,7 @@ impl Debugger {
         }
     }
 
-    pub fn load_file(&mut self, filename: &str) -> Result<(), Error> {
+    pub fn load_file(&mut self, filename: &Path) -> Result<(), Error> {
         self.fc.load_rom(filename)?;
         Ok(())
     }
@@ -161,7 +161,7 @@ impl Debugger {
                          Usage: load <file.nes>",
                     ));
                 }
-                match self.fc.load_rom(filename).into() {
+                match self.fc.load_rom(Path::new(filename)).into() {
                     Ok(_a) => Ok(_a),
                     Err(e) => Err(String::from(format!("Could not load the file: {e}"))),
                 }

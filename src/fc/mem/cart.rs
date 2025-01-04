@@ -2,8 +2,7 @@
 // https://www.nesdev.org/wiki/NES_2.0
 
 use std::{
-    fs::File,
-    io::{self, Error, Read},
+    fs::File, io::{self, Error, Read}, path::Path
 };
 
 use crate::{bits::Bitwise, fc::mem::mapper::MapperType};
@@ -52,7 +51,7 @@ pub struct NESFile {
 }
 
 impl NESFile {
-    pub fn from_file(filename: &str) -> Result<NESFile, Error> {
+    pub fn from_file(filename: &Path) -> Result<NESFile, Error> {
         let mut f = File::open(filename)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
