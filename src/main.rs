@@ -1,6 +1,6 @@
 use std::{env, path::Path};
 
-use crate::fc::dbg::Debugger;
+use gui::GUI;
 
 pub mod bits;
 pub mod fc;
@@ -11,9 +11,9 @@ fn main() -> Result<(), String> {
 
     let args: Vec<String> = env::args().collect();
     if let Some(filename) = args.get(1) {
-        let mut debugger = Debugger::new();
-        match debugger.load_file(Path::new(filename)) {
-            Ok(_) => Ok(debugger.run()),
+        let gui = GUI::from_file(Path::new(filename));
+        match gui {
+            Ok(mut g) => Ok(g.run_forever()),
             Err(e) => Err(format!("{} (filename: '{}')", e, filename)),
         }
     } else {

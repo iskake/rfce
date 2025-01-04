@@ -33,13 +33,13 @@ impl FC {
         }
     }
 
-    pub fn from_file(filename: &Path) -> Result<FC, Error> {
+    pub fn from_file(filename: &Path) -> Result<Box<FC>, Error> {
         let nesfile = NESFile::from_file(filename)?;
         let mem = MemMap::from_nesfile(&nesfile);
 
         let ppu = PPU::new();
         let cpu = CPU::new(mem, ppu);
-        Ok(FC { cpu, cart: Some(nesfile) })
+        Ok(Box::new(FC { cpu, cart: Some(nesfile) }))
     }
 
     /// Reads and loads the specified ROM, including initialization.
@@ -87,5 +87,9 @@ impl FC {
 
     pub fn step_dbg(&mut self) -> () {
         self.cpu.fetch_and_run_dbg();
+    }
+
+    pub fn get_frame(&self) -> &[u8] {
+        self.cpu.ppu.get_frame_buf()
     }
 }
