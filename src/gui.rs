@@ -1,14 +1,17 @@
-use std::{path::Path, process::exit, time::Duration};
+use std::path::Path;
 
+mod gl_renderer;
+
+use gl_renderer::GLRenderer;
 use imgui::*;
 use imgui_glow_renderer::{
-    glow::{self, HasContext},
+    glow::{self},
     AutoRenderer,
 };
 use imgui_sdl2_support::SdlPlatform;
 use log::info;
 use sdl2::{
-    event::Event,
+    event::{Event, WindowEvent},
     keyboard::Keycode,
     video::{GLProfile, Window},
     Sdl,
@@ -22,7 +25,7 @@ pub struct GUI {
     _gl_context: sdl2::video::GLContext,
     window: Window,
     platform: SdlPlatform,
-    renderer: AutoRenderer,
+    renderer: GLRenderer,
     fc: Option<Box<FC>>,
 }
 
@@ -60,7 +63,7 @@ impl GUI {
             .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
 
         let platform = SdlPlatform::new(&mut imgui);
-        let renderer = AutoRenderer::new(gl, &mut imgui).unwrap();
+        let renderer = GLRenderer::new(AutoRenderer::new(gl, &mut imgui).unwrap());
 
         GUI {
             sdl_context,
@@ -96,13 +99,21 @@ impl GUI {
                         keycode: Some(Keycode::Escape),
                         ..
                     } => break 'running,
+                    Event::Window {
+                        win_event: WindowEvent::SizeChanged(_, _),
+                        ..
+                    } => {
+                        let (width, height) = self.window.size();
+                        self.renderer.update_viewport(width as i32, height as i32);
+                    }
                     _ => {}
                 }
             }
 
             if let Some(fc) = &mut self.fc {
                 fc.run_to_vblank();
-                let _frame = fc.get_frame(); // TODO....
+                let frame_buf = fc.get_frame(); // TODO....
+                self.renderer.update_texture(frame_buf);
             }
 
             self.platform
@@ -112,12 +123,7 @@ impl GUI {
 
             let draw_data = self.imgui.render();
 
-            unsafe {
-                self.renderer.gl_context().clear_color(0.0, 0.5, 1.0, 1.0);
-                self.renderer.gl_context().clear(glow::COLOR_BUFFER_BIT);
-            }
-
-            self.renderer.render(draw_data).unwrap();
+            self.renderer.render(draw_data);
 
             // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
             self.window.gl_swap_window();

@@ -19,8 +19,8 @@ const SPRITE_SIZE: usize = 4;
 const TILE_SIZE: u16 = 16;
 const PALETTE_RAM_SIZE: usize = 0x20;
 
-const PICTURE_WIDTH:  usize = 256;
-const PICTURE_HEIGHT: usize = 240;
+pub const PICTURE_WIDTH:  usize = 256;
+pub const PICTURE_HEIGHT: usize = 240;
 
 const SCANLINE_DURATION: u32 = 341;
 const FRAME_SCANLINES:   u32 = 262;
@@ -141,19 +141,23 @@ impl PPU {
             match self.scanline {
                 0..=239 => {    // rendering (visible scanlines)
                     // TODO
-                    if !self.reg.mask.bg_enable {
+                    if !self.reg.mask.bg_enable || true {
                         // Rendering disabled
                         let x = self.cycle as usize;
                         let y = self.scanline as usize;
                         let idx = y * PICTURE_HEIGHT + x;
 
                         let px = RGB8 {
-                            r: 0x00,
-                            g: 0x00,
-                            b: 0x00,
+                            r: (self.frame & 0xff) as u8,
+                            g: (self.frame & 0xff) as u8,
+                            b: (self.frame & 0xff) as u8,
                         };
 
                         self.frame_buf.as_rgb_mut()[idx] = px;
+
+                        if idx == 0 {
+                            println!("val: {}", self.frame_buf[0]);
+                        }
                     } else {
                         match self.cycle {
                             0 => {},         // idle cycle
