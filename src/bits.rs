@@ -13,76 +13,11 @@ pub trait Bitwise: PrimInt {
     fn test_bit(&self, i: usize) -> bool;
 }
 
-// I know it is the same exact code, but since it's primitives...
-impl Bitwise for i8 {
+impl<T> Bitwise for T where T: PrimInt {
     fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for i16 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for i32 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for i64 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for i128 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for isize {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for u8 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for u16 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for u32 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for u64 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for u128 {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
-    }
-}
-
-impl Bitwise for usize {
-    fn test_bit(&self, i: usize) -> bool {
-        (self & (1 << i)) != 0
+        let zero = T::zero();
+        let one = T::one();
+        (*self & (one << i)) != zero
     }
 }
 
