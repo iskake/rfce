@@ -1,6 +1,7 @@
 mod tile;
 
 use log::debug;
+use rgb::*;
 use tile::Tile;
 
 use crate::bits::Bitwise;
@@ -46,8 +47,8 @@ pub struct PPU {
     scanline: u32,
     frame: u64,
     // ??vvv
-    frame_buf: [u8; PICTURE_HEIGHT * PICTURE_WIDTH * 3],
-    nametable_buf: [u8; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3],
+    frame_buf: Vec<u8>,
+    nametable_buf: Vec<u8>,
 }
 
 impl PPU {
@@ -61,8 +62,8 @@ impl PPU {
             cycle: 0,
             scanline: 0,
             frame: 0,
-            frame_buf: [0; PICTURE_HEIGHT * PICTURE_WIDTH * 3],
-            nametable_buf: [0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
+            frame_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * 3],
+            nametable_buf: vec![0; PICTURE_HEIGHT * PICTURE_WIDTH * 4 * 3]
         }
     }
 
@@ -138,9 +139,13 @@ impl PPU {
                         let y = self.scanline as usize;
                         let idx = y * PICTURE_HEIGHT + x;
 
-                        self.frame_buf[idx * 3] = 0x00;
-                        self.frame_buf[idx * 3 + 1] = 0x00;
-                        self.frame_buf[idx * 3 + 2] = 0x00;
+                        let px = RGB8 {
+                            r: 0x00,
+                            g: 0x00,
+                            b: 0x00,
+                        };
+
+                        self.frame_buf.as_rgb_mut()[idx] = px;
                     } else {
                         match self.cycle {
                             0 => {},         // idle cycle
@@ -436,11 +441,9 @@ impl PPU {
                         let pal_idx = self.pal_idx_from_attr_table(nametable_num, nametable_x, nametable_y, mem);
 
                         let color = self.pixel_color_at(pal_idx, pixel_color, false);
-                        let (r,b,g) = as_rgb(color);
+                        let px = as_rgb(color);
 
-                        self.nametable_buf[3 * idx]     = r;
-                        self.nametable_buf[3 * idx + 1] = g;
-                        self.nametable_buf[3 * idx + 2] = b;
+                        self.nametable_buf.as_rgb_mut()[idx] = px;
                     }
                 }
             }
@@ -492,11 +495,11 @@ impl PPU {
 }
 
 /// Get the rgb color corresponding to the ppu color.
-fn as_rgb(color: u8) -> (u8,u8,u8) {
+fn as_rgb(color: u8) -> RGB8 {
     let r = PALETTE_COLORS[3 * color as usize];
     let g = PALETTE_COLORS[3 * color as usize + 1];
     let b = PALETTE_COLORS[3 * color as usize + 2];
-    (r, b, g)
+    RGB8 { r, g, b }
 }
 
 // TODO? make it possible to change this?
