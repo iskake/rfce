@@ -400,8 +400,7 @@ impl PPU {
     }
 
     pub(crate) fn generate_nametables_image_temp(&mut self, mem: &MemMap) -> &[u8] {
-        let img_w = 2 * PICTURE_WIDTH;//8*2;
-        let img_h = 2 * PICTURE_HEIGHT;
+        let img_w = 2 * PICTURE_WIDTH;
 
         for nametable_num in 0..4 {
             for nametable_byte in 0..(NAMETABLE_SIZE - ATTRIBUTE_TABLE_SIZE /* * 4 */) {
