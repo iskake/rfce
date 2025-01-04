@@ -154,10 +154,6 @@ impl PPU {
                         };
 
                         self.frame_buf.as_rgb_mut()[idx] = px;
-
-                        if idx == 0 {
-                            println!("val: {}", self.frame_buf[0]);
-                        }
                     } else {
                         match self.cycle {
                             0 => {},         // idle cycle
