@@ -2,8 +2,7 @@
 // https://www.nesdev.org/wiki/NES_2.0
 
 use std::{
-    fs::File,
-    io::{self, Error, Read},
+    fs::File, io::{self, Error, Read}, path::Path
 };
 
 use crate::{bits::Bitwise, fc::mem::mapper::MapperType};
@@ -52,7 +51,7 @@ pub struct NESFile {
 }
 
 impl NESFile {
-    pub fn from_file(filename: &str) -> Result<NESFile, Error> {
+    pub fn from_file(filename: &Path) -> Result<NESFile, Error> {
         let mut f = File::open(filename)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
@@ -63,7 +62,6 @@ impl NESFile {
     pub fn from_vec(mut bytes: Vec<u8>) -> Result<NESFile, Error> {
         if bytes[0..4] == NES_FILE_IDENTIFIER {
             let data = bytes.split_off(16);
-            // println!("{}", bytes.len());
             let header = NESFileHeader::from_slice(&bytes[4..16]);
 
             Ok(NESFile {
@@ -86,8 +84,6 @@ impl NESFile {
     pub fn is_nes20_format(&self) -> bool {
         self.header.flags7 & 0x0c == 0x08
     }
-
-    // TODO? move these functions to NESFile instead?
 
     /// Nametable layout according to byte 6 of the header
     ///

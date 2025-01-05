@@ -1,6 +1,13 @@
 /target
 .vscode
 
+# Assembly and binary files
 *.s
 *.bin
 *.nes
+
+# Other files
+*.log
+*.pal
+*.png
+notes.md

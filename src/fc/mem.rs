@@ -1,4 +1,5 @@
 use cart::NESFile;
+use log::warn;
 use mapper::{Mapper, NROMMapper};
 
 pub mod cart;
@@ -12,7 +13,7 @@ pub trait Memory {
     fn write(&mut self, addr: u16, val: u8) -> ();
 }
 
-// TODO: create a proper data types to handle generic memory for cartridges and all that good stuff
+// "Dummy Mapper", used as last resort if mapper does not exist.
 type DummyMapper = [u8; MAPPER_SPACE];
 
 impl Memory for DummyMapper {
@@ -25,7 +26,6 @@ impl Memory for DummyMapper {
     }
 }
 
-// TODO: ???
 impl Mapper for DummyMapper {
     fn read_chr(&self, _addr: u16) -> u8 {
         0xff
@@ -39,7 +39,7 @@ impl Mapper for DummyMapper {
         0xff
     }
 
-    fn nametable_write(&mut self, _addr: u16, _val: u8, mut _vram: [u8; super::ppu::VRAM_SIZE]) -> () {
+    fn nametable_write(&mut self, _addr: u16, _val: u8, _vram: &mut [u8; super::ppu::VRAM_SIZE]) -> () {
         ()
     }
 }
@@ -92,8 +92,8 @@ impl MemMap {
                 }
             }
             mapper::MapperType::UNKNOWN(i) => {
-                println!("WARNING: UNKNOWN MAPPER ({i})");
-                println!("as a fallback, RAM is used as a mapper (r/w)");
+                warn!("WARNING: UNKNOWN MAPPER ({i})");
+                warn!("as a fallback, RAM is used as a mapper (r/w)");
 
                 let buf = nesfile.data.clone();
 

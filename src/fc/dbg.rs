@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 use std::io::{self, Error, Write};
-use std::process::exit;
+use std::path::Path;
+
+use image::RgbImage;
+use log::info;
 
 use crate::bits;
 
@@ -9,24 +12,24 @@ use super::FC;
 #[derive(PartialEq, Eq, Hash)]
 enum Breakpoint {
     Address(u16),
-    CPUCycle(u64),  // TODO
-    PPUCycle(u64),  // TODO
-    Scanline(u16),  // TODO
+    CPUCycle(u64),
+    PPUCycle(u32),
+    Scanline(u32),
 }
 
 impl std::fmt::Display for Breakpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Breakpoint::Address(addr) => write!(f, "at address ${addr:04x}"),
-            Breakpoint::CPUCycle(cycle) => write!(f, "at CPU cycle {cycle}"),
-            Breakpoint::PPUCycle(cycle) => write!(f, "at PPU cycle {cycle}"),
-            Breakpoint::Scanline(scanline) => write!(f, "at scanline {scanline} hit"),
+            Breakpoint::CPUCycle(cycle) => write!(f, "CPU cycle {cycle}"),
+            Breakpoint::PPUCycle(cycle) => write!(f, "PPU cycle {cycle}"),
+            Breakpoint::Scanline(scanline) => write!(f, "scanline {scanline} hit"),
         }
     }
 }
 
 pub struct Debugger {
-    fc: FC,
+    fc: FC, // TODO? use Rc<RefCell<FC>> so we can use the debugger inside of the GUI?
     last_input: String,
     breakpoints: HashSet<Breakpoint>,
     ed_mode: bool, // :)
@@ -43,7 +46,7 @@ impl Debugger {
         }
     }
 
-    pub fn load_file(&mut self, filename: &str) -> Result<(), Error> {
+    pub fn load_file(&mut self, filename: &Path) -> Result<(), Error> {
         self.fc.load_rom(filename)?;
         Ok(())
     }
@@ -62,7 +65,12 @@ impl Debugger {
             match stdin.read_line(&mut input) {
                 Ok(_) => match self.handle_input(&mut input) {
                     Ok(()) => (),
-                    Err(e) => println!("{}", if !self.ed_mode { e } else { "?".to_owned() }),
+                    Err(e) => {
+                        if e == "__stop" {
+                            break;
+                        }
+                        println!("{}", if !self.ed_mode { e } else { "?".to_owned() });
+                    }
                 },
                 Err(err) => println!("An error occurred: {}", err),
             };
@@ -70,7 +78,7 @@ impl Debugger {
     }
 
     fn handle_input(&mut self, input: &mut String) -> Result<(), String> {
-        if *input == "\n" || *input == "\u{1b}[A" {
+        if *input == "\n" {
             *input = self.last_input.clone();
         } else {
             self.last_input = input.clone();
@@ -80,16 +88,65 @@ impl Debugger {
 
         match parts[..] {
             ["c"] => {
+                let mut start = std::time::Instant::now();
+                let mut prev_vbl_check = false;
                 loop {
                     // Continue running
                     self.fc.cpu.fetch_and_run();
-                    let addr_break = Breakpoint::Address(self.fc.cpu.pc());
-                    if self.breakpoints.contains(&addr_break) {
-                        println!("Hit breakpoint {}", addr_break);
-                        self.fc.cpu.print_state();
-                        break;
+
+                    let cpu_cycles_after = self.fc.cpu.cycles();
+                    let ppu_cycles_after = self.fc.cpu.ppu.cycles();
+
+                    if self.fc.cpu.ppu.just_finished_rendering() && !prev_vbl_check {
+                        let end = start.elapsed();
+                        info!("Time: {:.2?}", end);
+                        start = std::time::Instant::now();
+                    }
+                    prev_vbl_check = self.fc.cpu.ppu.just_finished_rendering();
+
+                    if !self.breakpoints.is_empty() {
+                        let addr_break = Breakpoint::Address(self.fc.cpu.pc());
+                        let scan_break = Breakpoint::Scanline(self.fc.cpu.ppu.scanlines());
+                        let cpu_cyc_break = Breakpoint::CPUCycle(cpu_cycles_after);
+                        let ppu_cyc_break = Breakpoint::PPUCycle(ppu_cycles_after);
+
+                        if self.breakpoints.contains(&addr_break) {
+                            println!("Hit breakpoint {}", addr_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&scan_break) {
+                            println!("Hit breakpoint {}", scan_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&cpu_cyc_break) {
+                            println!("Hit breakpoint {}", cpu_cyc_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        } else if self.breakpoints.contains(&ppu_cyc_break) {
+                            println!("Hit breakpoint {}", ppu_cyc_break);
+                            self.fc.cpu.print_state();
+                            break;
+                        }
                     }
                 }
+                Ok(())
+            }
+            ["cv"] => {
+                // TODO: handle breakpoints as well?
+                self.fc.run_until_render_done();
+
+                let nametable_buf = self.fc.cpu.ppu.generate_nametables_image_temp(&mut self.fc.cpu.mem);
+                // TODO: remove this so we don't need 100 extra dependencies...
+                let img_w = 256;
+                let img_h = 240;
+                let img: RgbImage = RgbImage::from_raw(img_w * 2, img_h * 2, nametable_buf.to_vec()).unwrap();
+                img.save(Path::new("nametables.png")).unwrap();
+
+                let frame_buf = self.fc.cpu.ppu.get_frame_buf();
+                let img: RgbImage = RgbImage::from_raw(img_w, img_h, frame_buf.to_vec()).unwrap();
+                img.save(Path::new("frame.png")).unwrap();
+
+                self.fc.cpu.print_state();
                 Ok(())
             }
             ["s"] => {
@@ -136,7 +193,7 @@ impl Debugger {
                          Usage: load <file.nes>",
                     ));
                 }
-                match self.fc.load_rom(filename).into() {
+                match self.fc.load_rom(Path::new(filename)).into() {
                     Ok(_a) => Ok(_a),
                     Err(e) => Err(String::from(format!("Could not load the file: {e}"))),
                 }
@@ -145,9 +202,9 @@ impl Debugger {
             ["x", mem_type, addr] => self.examine(mem_type, addr),
             ["x", addr] => self.examine("cpu", addr),
             ["x", ..] => Err(String::from("Usage: x $<address>")),
-            ["q" | "quit" | "exit"] => {
+            ["q" | "quit" | "exit" | "stop"] => {
                 if !self.ed_mode {
-                    exit(0)
+                    Err(String::from("__stop"))
                 } else {
                     Err(String::new())
                 }
@@ -173,28 +230,18 @@ impl Debugger {
     fn examine(&self, mem_type: &str, addr: &str) -> Result<(), String> {
         match mem_type {
             "c" | "cpu" => {
-                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let from_addr = (try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_nocycle(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
             "p" | "ppu" => {
-                let from_addr = (Self::try_parse_hex(addr)? & 0xfff0) as u32;
+                let from_addr = (try_parse_hex(addr)? & 0xfff0) as u32;
                 let f = |a| self.fc.cpu.read_addr_ppu(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
             _ => Err(String::from(format!("Invalid memory type: `{mem_type}`")))
-        }
-    }
-
-    fn try_parse_hex(val: &str) -> Result<u16, String> {
-        if !val.starts_with("$") && !val.starts_with("0x") {
-            Err(String::from("Address must be prefixed with `$` or `0x`"))
-        } else if let Ok(addr) = bits::parse_hex(val) {
-            Ok(addr)
-        } else {
-            Err(String::from("Could not parse the provided address as a 16 bit hex number."))
         }
     }
 
@@ -238,7 +285,7 @@ impl Debugger {
                 }
             },
             "c" | "cpu" | "cycle" | "cpucycle" => {
-                println!("INFO: breakpoints for cpu cycles currently do not work");
+                println!("INFO: breakpoints for cpu cycles currently ignores any cycle it does not exactly land on");
                 // Add a breakpoint for a (cpu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::CPUCycle(cycle))
@@ -250,7 +297,7 @@ impl Debugger {
                 }
             },
             "p" | "ppu" | "ppucycle" => {
-                println!("INFO: breakpoints for ppu cycles currently do not work");
+                println!("INFO: breakpoints for ppu cycles currently ignores any cycle it does not exactly land on");
                 // Add a breakpoint for a (ppu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::PPUCycle(cycle))
@@ -262,7 +309,6 @@ impl Debugger {
                 }
             },
             "s" | "scan" | "line" | "scanline" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
                 // Add a breakpoint for a scanline
                 if let Ok(scanline) = val.parse() {
                     self.try_add_breakpoint(Breakpoint::Scanline(scanline))
@@ -299,7 +345,6 @@ impl Debugger {
                 }
             },
             "c" | "cpu" | "cycle" | "cpucycle" => {
-                println!("INFO: breakpoints for cpu cycles currently do not work");
                 // Add a breakpoint for a (cpu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::CPUCycle(cycle))
@@ -311,7 +356,6 @@ impl Debugger {
                 }
             },
             "p" | "ppu" | "ppucycle" => {
-                println!("INFO: breakpoints for ppu cycles currently do not work");
                 // Add a breakpoint for a (ppu) cycle
                 if let Ok(cycle) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::PPUCycle(cycle))
@@ -323,7 +367,6 @@ impl Debugger {
                 }
             },
             "s" | "scan" | "line" | "scanline" => {
-                println!("INFO: breakpoints for scanlines currently do not work");
                 // Add a breakpoint for a scanline
                 if let Ok(scanline) = val.parse() {
                     self.try_remove_breakpoint(Breakpoint::Scanline(scanline))
@@ -357,5 +400,15 @@ impl Debugger {
         } else {
             Err(String::from(format!("Breakpoint does not exist: {breakpoint}")))
         }
+    }
+}
+
+fn try_parse_hex(val: &str) -> Result<u16, String> {
+    if !val.starts_with("$") && !val.starts_with("0x") {
+        Err(String::from("Address must be prefixed with `$` or `0x`"))
+    } else if let Ok(addr) = bits::parse_hex(val) {
+        Ok(addr)
+    } else {
+        Err(String::from("Could not parse the provided address as a 16 bit hex number."))
     }
 }

@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::fc::{ppu, NESFile};
 
 use super::Memory;
@@ -14,7 +16,7 @@ pub trait Mapper : Memory {
     fn read_chr(&self, addr: u16) -> u8;
     fn write_chr(&mut self, addr: u16, val: u8) -> ();
     fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8;
-    fn nametable_write(&mut self, addr: u16, val: u8, vram: [u8; ppu::VRAM_SIZE]) -> ();
+    fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> ();
 }
 
 pub struct NROMMapper {
@@ -41,18 +43,17 @@ impl NROMMapper {
             unimplemented!("NROM trainer handling");
         }
 
-        println!("NROM with:");
-        println!("  PRG-ROM SIZE: {}", prg_rom_size);
-        println!("  PRG-RAM SIZE: {}", prg_ram_size);
-        println!("  CHR-ROM SIZE: {}", chr_rom_size);
-        println!("  Nametable mirroring: {} ({} arrangement)",
+        info!("NROM with:");
+        info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
+        info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
+        info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
+        info!("  Nametable mirroring: {} ({} arrangement)\n",
             if nametable_v_mirror { "vertical" } else { "horizontal" },
             if nametable_v_mirror { "horizontal" } else { "vertical" }
         );
-        println!();
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
-        let prg_ram: Vec<u8> = vec![0; prg_ram_size];  // TODO
+        let prg_ram = vec![0; prg_ram_size];
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
 
         NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
@@ -71,7 +72,6 @@ impl NROMMapper {
 impl Memory for NROMMapper {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            // TODO: CHR-ROM?
             0x6000..=0x7fff => {
                 // TODO: handle mirroring/no ram
                 self.prg_ram[(addr - 0x6000) as usize]
@@ -103,7 +103,8 @@ impl Memory for NROMMapper {
 
 impl Mapper for NROMMapper {
     fn read_chr(&self, addr: u16) -> u8 {
-        self.chr_rom[addr as usize]
+        // TODO?
+        self.chr_rom[(addr as usize) % self.chr_rom.len()]
     }
 
     fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
@@ -115,7 +116,7 @@ impl Mapper for NROMMapper {
         vram[addr as usize]
     }
 
-    fn nametable_write(&mut self, addr: u16, val: u8, mut vram: [u8; ppu::VRAM_SIZE]) -> () {
+    fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> () {
         let addr = self.nametable_addr_fix(addr);
         vram[addr as usize] = val;
     }

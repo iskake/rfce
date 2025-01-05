@@ -1,4 +1,5 @@
 use inst::*;
+use log::{debug, info};
 
 use crate::bits::{as_address, Addr, Bitwise};
 use crate::fc::mem::*;
@@ -86,8 +87,8 @@ impl Registers {
 
 pub struct CPU {
     reg: Registers,
-    pub mem: MemMap, // TODO?: move this somewhere else and have a reference?
-    ppu: PPU,
+    pub mem: MemMap,
+    pub ppu: PPU,
     cycles: u64,
 }
 
@@ -130,6 +131,14 @@ impl CPU {
         );
     }
 
+    pub fn pc(&self) -> u16 {
+        self.reg.pc
+    }
+
+    pub(crate) fn cycles(&self) -> u64 {
+        self.cycles
+    }
+
     pub fn init(&mut self) -> () {
         self.ppu.init();
         let l = self.read_addr_nocycle(RESET_VECTOR);
@@ -150,10 +159,11 @@ impl CPU {
     }
 
     pub fn handle_nmi(&mut self) -> () {
+        debug!("NMI");
+
         self.push(self.reg.pc.msb()); // +2 cycles
         self.push(self.reg.pc.lsb()); // +2 cycles
 
-        // TODO? mesen pushes different value despite same p?
         self.push(self.reg.p.into()); // +2 cycles
 
         let l = self.read_addr_nocycle(NMI_VECTOR);
@@ -166,7 +176,7 @@ impl CPU {
     }
 
     fn handle_oam_dma(&mut self) {
-        println!("OAM DMA");
+        debug!("OAM DMA");
 
         let src_msb = self.ppu.oamdma();
         for dst in 0..=255u8 {
@@ -226,7 +236,6 @@ impl CPU {
     }
 
     pub fn read_addr_ppu(&self, addr: u16) -> u8 {
-        // TODO: make sure no side effects happen because of this
         self.ppu.read_addr(addr, &self.mem)
     }
 
@@ -297,8 +306,8 @@ impl CPU {
         let operand = self.pc_read(); // +1 cycle
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => self.reg.x, //TODO: have +1 cycle?
-            IndexRegister::Y => self.reg.y, //TODO: have +1 cycle?
+            IndexRegister::X => self.reg.x, // Note: does NOT add +1 cycle
+            IndexRegister::Y => self.reg.y, // Note: does NOT add +1 cycle
         };
         // if operand as u16 + delta as u16 > 0xff {
         //     self.cycle();
@@ -363,8 +372,8 @@ impl CPU {
         let addr = as_address(l, m);
         let delta = match ir {
             IndexRegister::N => 0,
-            IndexRegister::X => self.reg.x, //TODO: have +1 cycle?
-            IndexRegister::Y => self.reg.y, //TODO: have +1 cycle?
+            IndexRegister::X => self.reg.x, // Note: does NOT add +1 cycle
+            IndexRegister::Y => self.reg.y, // Note: does NOT add +1 cycle
         } as u16;
         // if (addr & 0xff) + delta > 0xff {
         //     self.cycle();
@@ -475,10 +484,10 @@ impl CPU {
     ///
     /// Cycles: `2`
     pub fn get_indirect(&mut self, addr: u16) -> u16 {
-        if addr == 0x00ff {
+        if addr & 0xff == 0x00ff {
             // Wraparound
-            let l = self.read_addr_cycle(0xff); // +1 cycle
-            let m = self.read_addr_cycle(0x00); // +1 cycle
+            let l = self.read_addr_cycle((addr & 0xff00) | 0xff); // +1 cycle
+            let m = self.read_addr_cycle((addr & 0xff00) | 0x00); // +1 cycle
             as_address(l, m)
         } else {
             let l = self.read_addr_cycle(addr); // +1 cycle
@@ -502,11 +511,11 @@ impl CPU {
             IndexRegister::Y => {
                 let ptr = as_address(m, 0x00);
                 let delta = self.reg.y as u16;
-                let addr = self.get_indirect(ptr) + delta; // +2 cycles
-                if (addr & 0xff00) != (addr + delta) & 0xff00 {
+                let addr = self.get_indirect(ptr); // +2 cycles
+                if (addr & 0xff00) != ((addr + delta) & 0xff00) {
                     self.cycle(); // +1 cycle
                 }
-                self.read_addr_cycle(addr) // +1 cycle
+                self.read_addr_cycle(addr + delta) // +1 cycle
             }
             IndexRegister::N => unreachable!(),
         }
@@ -597,10 +606,24 @@ impl CPU {
 
         // Interrupt handling
         if self.ppu.should_do_nmi() && !self.reg.nmi {
-            println!("NMI");
             self.handle_nmi();
         } else if self.reg.nmi && !self.ppu.nmi_enable() {
             self.reg.nmi = false;
+        }
+    }
+
+    pub fn run_to_rendering_finished(&mut self) -> () {
+        let start = std::time::Instant::now();
+        loop {
+            let before = self.ppu.just_finished_rendering();
+            self.fetch_and_run();
+            let after = self.ppu.just_finished_rendering();
+
+            if after && after != before {
+                let end = start.elapsed();
+                info!("Time: {:.2?}", end);
+                break;
+            }
         }
     }
 
@@ -611,20 +634,6 @@ impl CPU {
 
         let cycles_after = self.cycles;
 
-        println!("took {} cycles", cycles_after - cycles_before);
-        // let (op, inst) = self.fetch_next_op_inst(); // 1 cycle
-        // self.run_inst(inst); // n cycles
-        // let cycles_after = self.cycles;
-        // print!(" inst {inst:?} (op: ${op:02x}) ");
-        // if cycles_after - cycles_before == 1 {
-        //     println!("took 2 cycles (added one extra)");
-        //     self.cycle();
-        // } else {
-        //     println!("took {} cycles", cycles_after - cycles_before);
-        // }
-    }
-
-    pub fn pc(&self) -> u16 {
-        self.reg.pc
+        debug!("took {} cycles", cycles_after - cycles_before);
     }
 }

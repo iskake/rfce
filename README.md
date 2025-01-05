@@ -2,12 +2,17 @@
 
 A (very) wip Famicom / NES emulator written in rust.
 
-Currently, it is not able to display anything, so it always starts a debugger.
-
 ## Running
 
 ```sh
-~ $ cargo run --release <file.nes>
+# Starts a GUI
+~ $ rfce
+
+# Optionally, you can specify a file to load and start running
+~ $ rfce <file.nes>
+
+# Or, run it without a GUI (starts a debugger)
+~ $ rfce --headless <file.nes>
 ```
 
 ## Useful sources

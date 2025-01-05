@@ -22,6 +22,24 @@ pub enum AddrMode {
                         // (Indirect),Y
 }
 
+impl AddrMode {
+    pub fn arg_count(&self) -> u8 {
+        match self {
+            Imp => 0,
+            Acc => 0,
+            Imm => 1,
+            ZP(_) => 1,
+            Abs(_) => 2,
+            Ind(ir) => match ir {
+                N => 2,
+                X => 1,
+                Y => 1,
+            },
+            Rel => 1,
+        }
+    }
+}
+
 impl std::fmt::Display for AddrMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -39,7 +57,7 @@ impl std::fmt::Display for AddrMode {
                 Y => ",y",
             }),
             Ind(ir) => match ir {
-                N => write!(f, " $_w"),
+                N => write!(f, " ($_w)"),
                 X => write!(f, " ($_b,x)"),
                 Y => write!(f, " ($_b),y"),
             },
@@ -50,7 +68,7 @@ impl std::fmt::Display for AddrMode {
 
 #[derive(Clone,Copy,Debug)]
 #[rustfmt::skip]
-pub enum Inst { 
+pub enum Inst {
     // TODO: undefined opcodes
     ADC(AddrMode), AND(AddrMode), ASL(AddrMode), BCC(AddrMode), BCS(AddrMode), BEQ(AddrMode), BIT(AddrMode),
     BMI(AddrMode), BNE(AddrMode), BPL(AddrMode), BRK(AddrMode), BVC(AddrMode), BVS(AddrMode), CLC(AddrMode),
@@ -127,6 +145,7 @@ impl std::fmt::Display for Inst {
     }
 }
 
+use log::error;
 use AddrMode::*;
 use IndexRegister::*;
 use Inst::*;
@@ -215,9 +234,9 @@ impl Inst {
             Inst::LDY(am) => ld(cpu, am, InstrReg::Y),
             Inst::LSR(am) => rot(cpu, am, false, false),
             Inst::PHA(_a) => cpu.push(cpu.reg.a),
-            Inst::PHP(_a) => cpu.push(cpu.reg.p.into()),
-            Inst::PLA(_a) => cpu.reg.a = cpu.pull(),
-            Inst::PLP(_a) => cpu.reg.p = cpu.pull().into(),
+            Inst::PHP(_a) => cpu.push(Into::<u8>::into(cpu.reg.p) | 0b0011_0000),
+            Inst::PLA(_a) => pla(cpu),
+            Inst::PLP(_a) => cpu.reg.p = (cpu.pull() & 0b1100_1111).into(),
             Inst::ROL(am) => rot(cpu, am, true, true),
             Inst::ROR(am) => rot(cpu, am, true, false),
             Inst::SBC(am) => adc(cpu, am, true),
@@ -228,11 +247,17 @@ impl Inst {
             Inst::TAY(_a) => set_y(cpu, cpu.reg.a),
             Inst::TXA(_a) => set_a(cpu, cpu.reg.x),
             Inst::TYA(_a) => set_a(cpu, cpu.reg.y),
-            Inst::TSX(_a) => cpu.reg.x = cpu.reg.sp,
+            Inst::TSX(_a) => set_x(cpu, cpu.reg.sp),
             Inst::TXS(_a) => cpu.reg.sp = cpu.reg.x,
             Inst::ILL(op) => ill(cpu, op),
         }
     }
+}
+
+fn pla(cpu: &mut CPU) {
+    cpu.reg.a = cpu.pull();
+    cpu.reg.p.z = cpu.reg.a == 0;
+    cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
 
 fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
@@ -443,7 +468,7 @@ fn brk(cpu: &mut CPU) -> () {
 }
 
 fn ill(cpu: &mut CPU, opcode: u8) -> () {
-    println!("just hit illegal instruction... goodbye world");
+    error!("just hit illegal instruction... goodbye world");
     cpu.print_state();
     panic!("ILLEGAL INSTRUCTION ${:02x}", opcode);
 }
