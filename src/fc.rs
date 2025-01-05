@@ -77,8 +77,8 @@ impl FC {
         self.cpu.init();
     }
 
-    pub fn run_to_vblank(&mut self) -> () {
-        self.cpu.run_to_vblank();
+    pub fn run_until_render_done(&mut self) -> () {
+        self.cpu.run_to_rendering_finished();
     }
 
     pub fn step(&mut self) -> () {
@@ -91,5 +91,9 @@ impl FC {
 
     pub fn get_frame(&self) -> &[u8] {
         self.cpu.ppu.get_frame_buf()
+    }
+
+    pub fn get_nametables_dbg(&mut self) -> &[u8] {
+        self.cpu.ppu.generate_nametables_image_temp(&self.cpu.mem)
     }
 }

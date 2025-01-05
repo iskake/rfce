@@ -35,10 +35,10 @@ const FRAG_SHADER_SOURCE: &str = r#"
 #[rustfmt::skip]
 const VERTICES_RECT: [f32; 20] = [
     // positions        // texture coords
-    -1.0,  1.0, 0.0,    0.0, 1.0, // top left
-     1.0,  1.0, 0.0,    1.0, 1.0, // top right
-    -1.0, -1.0, 0.0,    0.0, 0.0, // bottom left
-     1.0, -1.0, 0.0,    1.0, 0.0, // bottom right
+    -1.0,  1.0, 0.0,    0.0, 0.0, // top left
+     1.0,  1.0, 0.0,    1.0, 0.0, // top right
+    -1.0, -1.0, 0.0,    0.0, 1.0, // bottom left
+     1.0, -1.0, 0.0,    1.0, 1.0, // bottom right
 ];
 
 const INDICES: [i32; 6] = [
@@ -234,6 +234,9 @@ fn create_vao_vbo_ebo(gl: &Context) -> (glow::NativeVertexArray, glow::Buffer, g
 }
 
 fn create_texture(gl: &Rc<Context>) -> NativeTexture {
+    let width = crate::fc::ppu::PICTURE_WIDTH;
+    let height = crate::fc::ppu::PICTURE_HEIGHT;
+
     unsafe {
         let texture = gl.create_texture().unwrap();
         gl.bind_texture(glow::TEXTURE_2D, Some(texture));
@@ -241,8 +244,8 @@ fn create_texture(gl: &Rc<Context>) -> NativeTexture {
             glow::TEXTURE_2D,
             0,
             glow::RGB as i32,
-            crate::fc::ppu::PICTURE_WIDTH as i32,
-            crate::fc::ppu::PICTURE_HEIGHT as i32,
+            width as i32,
+            height as i32,
             0,
             glow::RGB,
             glow::UNSIGNED_BYTE,

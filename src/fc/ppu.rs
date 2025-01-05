@@ -114,16 +114,16 @@ impl PPU {
         self.reg.status.vblank
     }
 
+    pub(crate) fn just_finished_rendering(&self) -> bool {
+        self.scanline == 240
+    }
+
     pub(crate) fn should_do_nmi(&self) -> bool {
         self.reg.status.vblank && self.reg.control.nmi_enable
     }
 
     pub(crate) fn nmi_enable(&self) -> bool {
         self.reg.control.nmi_enable
-    }
-
-    pub(crate) fn _just_finished_rendering(&self) -> bool {
-        self.scanline == 240
     }
 
     pub(crate) fn oamdma(&self) -> u8 {

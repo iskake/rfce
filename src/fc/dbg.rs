@@ -97,12 +97,12 @@ impl Debugger {
                     let cpu_cycles_after = self.fc.cpu.cycles();
                     let ppu_cycles_after = self.fc.cpu.ppu.cycles();
 
-                    if self.fc.cpu.ppu.is_vblank() && !prev_vbl_check {
+                    if self.fc.cpu.ppu.just_finished_rendering() && !prev_vbl_check {
                         let end = start.elapsed();
                         info!("Time: {:.2?}", end);
                         start = std::time::Instant::now();
                     }
-                    prev_vbl_check = self.fc.cpu.ppu.is_vblank();
+                    prev_vbl_check = self.fc.cpu.ppu.just_finished_rendering();
 
                     if !self.breakpoints.is_empty() {
                         let addr_break = Breakpoint::Address(self.fc.cpu.pc());
@@ -133,7 +133,7 @@ impl Debugger {
             }
             ["cv"] => {
                 // TODO: handle breakpoints as well?
-                self.fc.run_to_vblank();
+                self.fc.run_until_render_done();
 
                 let nametable_buf = self.fc.cpu.ppu.generate_nametables_image_temp(&mut self.fc.cpu.mem);
                 // TODO: remove this so we don't need 100 extra dependencies...

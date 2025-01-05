@@ -53,7 +53,6 @@ impl GUI {
 
         window.subsystem().gl_set_swap_interval(1).unwrap();
 
-        let gl = glow_context(&window);
 
         let mut imgui = Context::create();
         imgui.set_ini_filename(None);
@@ -63,6 +62,8 @@ impl GUI {
             .add_font(&[imgui::FontSource::DefaultFontData { config: None }]);
 
         let platform = SdlPlatform::new(&mut imgui);
+
+        let gl = glow_context(&window);
         let renderer = GLRenderer::new(AutoRenderer::new(gl, &mut imgui).unwrap());
 
         GUI {
@@ -87,9 +88,9 @@ impl GUI {
         info!("Starting GUI run loop");
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
-        let mut i = 0;
         'running: loop {
-            i = (i + 1) % 255;
+            // let frame_start = std::time::Instant::now();
+
             for event in event_pump.poll_iter() {
                 self.platform.handle_event(&mut self.imgui, &event);
 
@@ -111,8 +112,8 @@ impl GUI {
             }
 
             if let Some(fc) = &mut self.fc {
-                fc.run_to_vblank();
-                let frame_buf = fc.get_frame(); // TODO....
+                fc.run_until_render_done();
+                let frame_buf = fc.get_frame();
                 self.renderer.update_texture(frame_buf);
             }
 
@@ -125,8 +126,11 @@ impl GUI {
 
             self.renderer.render(draw_data);
 
-            // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+            // let frame_time = std::time::Duration::new(0, 1_000_000_000u32 / 60);
+            // let delta = frame_start.elapsed();
+            // ::std::thread::sleep(frame_time.abs_diff(delta));
             self.window.gl_swap_window();
+            // println!("Paused for: {:2?}", frame_time.abs_diff(delta));
 
             if !continue_running {
                 break 'running;
