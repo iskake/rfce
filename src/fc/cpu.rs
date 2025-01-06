@@ -613,15 +613,12 @@ impl CPU {
     }
 
     pub fn run_to_rendering_finished(&mut self) -> () {
-        let start = std::time::Instant::now();
         loop {
             let before = self.ppu.just_finished_rendering();
             self.fetch_and_run();
             let after = self.ppu.just_finished_rendering();
 
-            if after && after != before {
-                let end = start.elapsed();
-                info!("Time: {:.2?}", end);
+            if after && !before {
                 break;
             }
         }

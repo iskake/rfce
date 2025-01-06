@@ -9,7 +9,7 @@ use imgui_glow_renderer::{
     AutoRenderer,
 };
 use imgui_sdl2_support::SdlPlatform;
-use log::info;
+use log::{debug, info};
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::Keycode,
@@ -134,7 +134,13 @@ impl GUI {
             // Run the emulator until it's finished rendering (hits scanline 240)
             if let Some(fc) = &mut self.fc {
                 if !self.state.emulator_paused {
+                    let start = std::time::Instant::now();
+
                     fc.run_until_render_done();
+
+                    let end = start.elapsed();
+                    debug!("Time: {:.2?}", end);
+
                     let frame_buf = fc.get_frame();
                     self.renderer.update_texture(frame_buf);
                 }
