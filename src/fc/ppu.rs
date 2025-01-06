@@ -6,7 +6,7 @@ use tile::Tile;
 
 use crate::bits::Bitwise;
 
-use super::mem::MemMap;
+use super::{mem::MemMap, CPU_FREQ};
 
 pub const VRAM_SIZE: usize = NAMETABLE_SIZE * 2;
 
@@ -22,10 +22,11 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 pub const PICTURE_WIDTH:  usize = 256;
 pub const PICTURE_HEIGHT: usize = 240;
 
-const SCANLINE_DURATION: u32 = 341;
-const FRAME_SCANLINES:   u32 = 262;
-// const FRAME_DURATION_EVEN: u32 = SCANLINE_DURATION * FRAME_SCANLINES;
-// const FRAME_DURATION_ODD:  u32 = FRAME_DURATION_EVEN - 1;
+pub const SCANLINE_DURATION: u32 = 341;
+pub const FRAME_SCANLINES:   u32 = 262;
+pub const PPU_FREQ: f64 = CPU_FREQ * 3.0;
+
+pub const FRAMERATE: f64 = PPU_FREQ / (341.0 * 261.0 + 340.5);
 
 const ADDRESS_PPUCTRL:   u16 = 0x2000;
 const ADDRESS_PPUMASK:   u16 = 0x2001;
@@ -676,16 +677,6 @@ impl PPU {
         // let bottom_right = (attr & 0b11000000)>> 6;
 
         (attr & (0b11 << delta)) >> delta
-    }
-
-    /// Get the index into the attribute table corresponding to the specified nametable address
-    fn pal_idx_from_attr_addr(&self, addr: u16, mem: &MemMap) -> u8 {
-        assert!(addr >= 0x2000 && addr <= 0x2fff /* && (addr & 0x0080 == 0) */, "Addr: {:04x}", addr);
-        let tile_x = (addr & 0xfff) % 32;
-        let tile_y = (addr & 0xfff) >> 5;
-        let nametable_num = (addr & 0xc00) >> 10;
-
-        self.pal_idx_from_attr_table(nametable_num as usize, tile_x as usize, tile_y as usize, mem)
     }
 
     fn inc_hori(&mut self) -> () {

@@ -1,5 +1,5 @@
 use inst::*;
-use log::{debug, info};
+use log::*;
 
 use crate::bits::{as_address, Addr, Bitwise};
 use crate::fc::mem::*;
@@ -8,10 +8,8 @@ use super::PPU;
 
 pub mod inst;
 
-pub const CPU_FREQ: u64 = 1_789_773;
-
-pub const MASTER_FREQ: u64 = 21_477_272;
-pub const MASTER_FREQ_60HZ: u64 = 21_441_960;
+pub const MASTER_FREQ: f64 = 21_477_272.727272727;
+pub const CPU_FREQ: f64 = MASTER_FREQ / 12.0;
 
 const NMI_VECTOR: u16 = 0xfffa;
 const RESET_VECTOR: u16 = 0xfffc;

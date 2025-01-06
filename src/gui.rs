@@ -9,7 +9,7 @@ use imgui_glow_renderer::{
     AutoRenderer,
 };
 use imgui_sdl2_support::SdlPlatform;
-use log::{debug, info};
+use log::{debug, info, warn};
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::Keycode,
@@ -36,6 +36,7 @@ pub struct GUI {
 struct GUIState {
     continue_running: bool,
     emulator_paused: bool,
+    emulator_60fps: bool,
     curr_rom_path: PathBuf,
     // show_menubar: bool,
 }
@@ -62,7 +63,7 @@ impl GUI {
         let gl_context = window.gl_create_context().unwrap();
         window.gl_make_current(&gl_context).unwrap();
 
-        window.subsystem().gl_set_swap_interval(1).unwrap();
+        window.subsystem().gl_set_swap_interval(0).unwrap();
 
         let mut imgui = Context::create();
         imgui.set_ini_filename(None);
@@ -79,6 +80,7 @@ impl GUI {
         let state = GUIState {
             continue_running: true,
             emulator_paused: false,
+            emulator_60fps: false,
             curr_rom_path: PathBuf::new(),
             // show_menubar: false,
         };
@@ -108,7 +110,7 @@ impl GUI {
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         'running: loop {
-            // let frame_start = std::time::Instant::now();
+            let frame_start = std::time::Instant::now();
 
             // Handle events
             for event in event_pump.poll_iter() {
@@ -155,11 +157,21 @@ impl GUI {
 
             self.renderer.render(draw_data);
 
-            // let frame_time = std::time::Duration::new(0, 1_000_000_000u32 / 60);
-            // let delta = frame_start.elapsed();
-            // ::std::thread::sleep(frame_time.abs_diff(delta));
+            let divider = if self.state.emulator_60fps {
+                60.0
+            } else {
+                crate::fc::ppu::FRAMERATE
+            };
+            let frame_duration = (1_000_000_000.0 / divider) as u32;
+
+            let frame_time = std::time::Duration::new(0, frame_duration);
+            let delta = frame_start.elapsed();
+            if let Some(time) = frame_time.checked_sub(delta) {
+                ::std::thread::sleep(time);
+            }
             self.window.gl_swap_window();
-            // println!("Paused for: {:2?}", frame_time.abs_diff(delta));
+            debug!("Paused for: {:.2?} (f:{:?})", frame_time.checked_sub(delta), frame_time);
+            debug!("Frame took: {:?}", frame_start.elapsed());
 
             if !self.state.continue_running {
                 break 'running;
