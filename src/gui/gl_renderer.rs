@@ -4,6 +4,7 @@ use imgui_glow_renderer::{
     glow::{self, Context, HasContext, NativeProgram, NativeTexture},
     AutoRenderer,
 };
+use log::error;
 use rgb::bytemuck;
 
 const VERT_SHADER_SOURCE: &str = r#"
@@ -138,7 +139,9 @@ impl GLRenderer {
     pub fn render(&mut self, draw_data: &imgui::DrawData) -> () {
         self.clear();
         self.render_texture();
-        self.renderer.render(draw_data).unwrap();
+        if let Err(e) = self.renderer.render(draw_data) {
+            error!("Rendering error: {e}");
+        }
     }
 }
 
