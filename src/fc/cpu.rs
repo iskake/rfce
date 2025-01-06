@@ -13,9 +13,9 @@ pub const CPU_FREQ: u64 = 1_789_773;
 pub const MASTER_FREQ: u64 = 21_477_272;
 pub const MASTER_FREQ_60HZ: u64 = 21_441_960;
 
-pub const NMI_VECTOR: u16 = 0xfffa;
-pub const RESET_VECTOR: u16 = 0xfffc;
-pub const IRQ_VECTOR: u16 = 0xfffe;
+const NMI_VECTOR: u16 = 0xfffa;
+const RESET_VECTOR: u16 = 0xfffc;
+const IRQ_VECTOR: u16 = 0xfffe;
 
 // TODO: change visibility of various enums (from pub to private)??
 
@@ -588,12 +588,12 @@ impl CPU {
     }
 
     pub fn fetch_and_run(&mut self) -> () {
-        let cycles_before = self.cycles;
-
         // OAM DMA handling
         if self.reg.dma {
             self.handle_oam_dma();
         }
+
+        let cycles_before = self.cycles;
 
         let inst = self.fetch_next_inst(); // 1 cycle
         self.run_inst(inst); // n cycles
