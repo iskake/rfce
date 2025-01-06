@@ -180,69 +180,97 @@ impl GUI {
     }
 
     fn handle_imgui(&mut self) -> () {
+        let io = self.imgui.io();
+
+        let [m_x, m_y] = io.mouse_pos;
+        let (mouse_x, mouse_y) = (m_x as u32, m_y as u32);
+        let (window_w, window_h) = self.window.size();
+
+        // Note: NOT using >= / <=, because io.mouse_pos doesn't update when the mouse
+        // is outside of the window, so we use this as the workaround...
+        let should_display_menubar =
+            mouse_x > 0 && mouse_y > 0 && mouse_x < (window_w - 1) && mouse_y < (window_h - 1);
+
         let ui = self.imgui.new_frame();
 
-        if let Some(menu_bar) = ui.begin_main_menu_bar() {
-            if let Some(menu) = ui.begin_menu("File") {
-                if ui.menu_item("Load ROM") {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("rom", &["nes"])
-                        .pick_file()
-                    {
-                        let filename = path.as_path();
-                        info!("File: {filename:?}");
-                        self.fc = load_rom(filename).ok();
-                        self.state.curr_rom_path = path;
-                    }
-                }
+        if should_display_menubar {
+            if let Some(menu_bar) = ui.begin_main_menu_bar() {
+                if let Some(menu) = ui.begin_menu("File") {
+                    if ui.menu_item("Load ROM") {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("rom", &["nes"])
+                            .pick_file()
+                        {
+                            let filename = path.as_path();
+                            info!("File: {filename:?}");
+                            self.fc = load_rom(filename).ok();
 
-                if ui.menu_item("Quit") {
-                    self.state.continue_running = false;
-                }
-                menu.end();
-            }
-            if let Some(menu) = ui.begin_menu("Emu") {
-                if ui.menu_item("Pause") {
-                    self.state.emulator_paused = !self.state.emulator_paused;
-                }
-                if ui.menu_item("Reset") {
-                    if let Some(fc) = &mut self.fc {
-                        fc.reset();
-                    } else {
-                        info!("No emulator")
-                    }
-                }
-                if ui.menu_item("Hard reset") {
-                    if let Some(fc) = &mut self.fc {
-                        // We don're actually care if it has a rom loaded or not...
-                        if fc.reset_hard().is_err() {
-                            info!("No rom loaded");
+                            // WARNING: extremely scuffed way of doing things follows.
+                            self.state.curr_rom_path = if self.fc.is_some() {
+                                // idk, seems like great coding conventions to me...
+                                let title = path.file_stem().unwrap().to_str().unwrap();
+                                self.window.set_title(title).unwrap();
+
+                                path.clone()
+                            } else {
+                                PathBuf::new()
+                            };
                         }
-                    } else {
-                        info!("No emulator")
                     }
-                }
-                menu.end();
-            }
-            if let Some(menu) = ui.begin_menu("Misc") {
-                if ui.menu_item("Save screenshot") {
-                    if let Some(fc) = &mut self.fc {
-                        let width = crate::fc::ppu::PICTURE_WIDTH as u32;
-                        let height = crate::fc::ppu::PICTURE_HEIGHT as u32;
-                        let frame_buf = fc.get_frame();
-                        let img: image::RgbImage = image::RgbImage::from_raw(width, height, frame_buf.to_vec()).unwrap();
 
-                        let mut img_path = self.state.curr_rom_path.clone();
-                        img_path.set_extension("png");
-                        info!("Saving screenshot to {:?}", img_path);
-                        img.save(img_path).unwrap();
-                    } else {
-                        info!("No emulator")
-                    }
+                    self.state.continue_running = !ui.menu_item("Quit");
+                    menu.end();
                 }
-                menu.end();
+                if let Some(menu) = ui.begin_menu("Emu") {
+                    ui.menu_item_config("Pause")
+                        .build_with_ref(&mut self.state.emulator_paused);
+                    if ui.menu_item("Reset") {
+                        if let Some(fc) = &mut self.fc {
+                            fc.reset();
+                        } else {
+                            info!("No emulator")
+                        }
+                    }
+                    if ui.menu_item("Hard reset") {
+                        if let Some(fc) = &mut self.fc {
+                            // We don're actually care if it has a rom loaded or not...
+                            if fc.reset_hard().is_err() {
+                                info!("No rom loaded");
+                            }
+                        } else {
+                            info!("No emulator")
+                        }
+                    }
+                    menu.end();
+                }
+                if let Some(menu) = ui.begin_menu("Misc") {
+                    ui.menu_item_config("Use integer FPS (60hz)")
+                        .build_with_ref(&mut self.state.emulator_60fps);
+                    if ui.menu_item("Save screenshot") {
+                        if let Some(fc) = &mut self.fc {
+                            let width = crate::fc::ppu::PICTURE_WIDTH as u32;
+                            let height = crate::fc::ppu::PICTURE_HEIGHT as u32;
+                            let frame_buf = fc.get_frame();
+                            let img: image::RgbImage =
+                                image::RgbImage::from_raw(width, height, frame_buf.to_vec())
+                                    .unwrap();
+
+                            // TODO: this is probably really dangerous if something other than a
+                            // game is "loaded", or any file named `<romfile>.png` already exists....
+                            let img_path = self.state.curr_rom_path.with_extension("png");
+
+                            info!("Saving screenshot: {}", img_path.display());
+                            if let Err(e) = img.save(img_path) {
+                                warn!("Failed to save screenshot: {}", e);
+                            }
+                        } else {
+                            info!("No emulator")
+                        }
+                    }
+                    menu.end();
+                }
+                menu_bar.end();
             }
-            menu_bar.end();
         }
     }
 }
