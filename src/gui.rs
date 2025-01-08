@@ -37,8 +37,11 @@ struct GUIState {
     continue_running: bool,
     emulator_paused: bool,
     emulator_60fps: bool,
+    // debugging_view: bool,
     curr_rom_path: PathBuf,
-    // show_menubar: bool,
+    ui_show_error: bool,
+    ui_last_error: Option<std::io::Error>,
+    ui_show_error_timer: std::time::Instant,
 }
 
 impl GUI {
@@ -81,8 +84,11 @@ impl GUI {
             continue_running: true,
             emulator_paused: false,
             emulator_60fps: false,
+            // debugging_view: false,
             curr_rom_path: PathBuf::new(),
-            // show_menubar: false,
+            ui_show_error: false,
+            ui_last_error: None,
+            ui_show_error_timer: std::time::Instant::now(),
         };
 
         GUI {
@@ -170,7 +176,11 @@ impl GUI {
                 ::std::thread::sleep(time);
             }
             self.window.gl_swap_window();
-            debug!("Paused for: {:.2?} (f:{:?})", frame_time.checked_sub(delta), frame_time);
+            debug!(
+                "Paused for: {:.2?} (f:{:?})",
+                frame_time.checked_sub(delta),
+                frame_time
+            );
             debug!("Frame took: {:?}", frame_start.elapsed());
 
             if !self.state.continue_running {
@@ -203,18 +213,28 @@ impl GUI {
                         {
                             let filename = path.as_path();
                             info!("File: {filename:?}");
-                            self.fc = load_rom(filename).ok();
+                            match load_rom(filename) {
+                                Ok(rom) => {
+                                    self.fc = Some(rom);
+                                    // WARNING: extremely scuffed way of doing things follows.
+                                    self.state.curr_rom_path = if self.fc.is_some() {
+                                        // idk, seems like great coding conventions to me...
+                                        let title = path.file_stem().unwrap().to_str().unwrap();
+                                        self.window.set_title(title).unwrap();
 
-                            // WARNING: extremely scuffed way of doing things follows.
-                            self.state.curr_rom_path = if self.fc.is_some() {
-                                // idk, seems like great coding conventions to me...
-                                let title = path.file_stem().unwrap().to_str().unwrap();
-                                self.window.set_title(title).unwrap();
-
-                                path.clone()
-                            } else {
-                                PathBuf::new()
-                            };
+                                        path.clone()
+                                    } else {
+                                        PathBuf::new()
+                                    };
+                                    self.state.ui_show_error = false;
+                                }
+                                Err(e) => {
+                                    warn!("Error: {}", e);
+                                    self.state.ui_show_error = true;
+                                    self.state.ui_last_error = Some(e);
+                                    self.state.ui_show_error_timer = std::time::Instant::now();
+                                }
+                            }
                         }
                     }
 
@@ -270,6 +290,29 @@ impl GUI {
                     menu.end();
                 }
                 menu_bar.end();
+            }
+        }
+
+        if self.state.ui_show_error {
+            if let Some(e) = &self.state.ui_last_error {
+                ui.window("Error")
+                    .position_pivot([1.01, 0.0])
+                    .position(
+                        [window_w as f32, 0.0],
+                        Condition::Always,
+                    )
+                    .movable(false)
+                    .resizable(false)
+                    .collapsible(false)
+                    .title_bar(false)
+                    .opened(&mut self.state.ui_show_error)
+                    .build(|| {
+                        ui.text(format!("Error loading rom: {}", e));
+                    });
+
+                if self.state.ui_show_error_timer.elapsed() > std::time::Duration::new(5, 0) {
+                    self.state.ui_show_error = false;
+                }
             }
         }
     }

@@ -405,17 +405,6 @@ impl PPU {
 
     #[inline]
     fn render_dot(&mut self, mem: &mut MemMap) {
-        // TODO
-        // if (!self.reg.mask.bg_enable) && self.cycle >= 1 && self.cycle <= 256 {
-        //     // Rendering disabled
-        //     let x = (self.cycle - 1) as usize;
-        //     let y = self.scanline as usize;
-        //     let idx = y * PICTURE_WIDTH + x;
-
-        //     let px = as_rgb(self.pal[0]);
-
-        //     self.frame_buf.as_rgb_mut()[idx] = px;
-        // } else {
         match self.cycle {
             0 => {},         // idle cycle
             1..=256 => {     // vram fetch/update

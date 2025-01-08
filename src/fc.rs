@@ -8,9 +8,9 @@ use crate::fc::mem::cart::*;
 use crate::fc::ppu::*;
 
 pub mod cpu;
-pub mod dbg;
-pub mod mem;
 pub mod ppu;
+pub mod mem;
+pub mod dbg;
 
 pub enum ConsoleType {
     Famicom,
@@ -35,7 +35,7 @@ impl FC {
 
     pub fn from_file(filename: &Path) -> Result<Box<FC>, Error> {
         let nesfile = NESFile::from_file(filename)?;
-        let mem = MemMap::from_nesfile(&nesfile);
+        let mem = MemMap::from_nesfile(&nesfile)?;
 
         let ppu = PPU::new();
         let cpu = CPU::new(mem, ppu);
@@ -55,7 +55,7 @@ impl FC {
         match &self.cart {
             None => Err(Error::new(std::io::ErrorKind::NotFound, "no ROM loaded")),
             Some(nesfile) => {
-                let mem = MemMap::from_nesfile(&nesfile);
+                let mem = MemMap::from_nesfile(&nesfile)?;
 
                 let ppu = PPU::new();
                 let cpu = CPU::new(mem, ppu);

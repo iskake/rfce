@@ -82,29 +82,22 @@ impl MemMap {
         }
     }
 
-    pub fn from_nesfile(nesfile: &NESFile) -> MemMap {
+    pub fn from_nesfile(nesfile: &NESFile) -> Result<MemMap, std::io::Error> {
         match nesfile.mapper_type() {
             mapper::MapperType::NROM => {
                 let mapper = Box::new(NROMMapper::from_nesfile(nesfile));
-                MemMap {
+                let mem_map = MemMap {
                     ram: [0; 0x800],
                     mapper,
-                }
+                };
+                Ok(mem_map)
             }
             mapper::MapperType::UNKNOWN(i) => {
                 warn!("WARNING: UNKNOWN MAPPER ({i})");
-                warn!("as a fallback, RAM is used as a mapper (r/w)");
-
-                let buf = nesfile.data.clone();
-
-                let mut data = Box::new([0; MAPPER_SPACE]);
-                for i in 0..buf.len() {
-                    data[i] = buf[i];
-                }
-                MemMap {
-                    ram: [0; 0x800],
-                    mapper: data,
-                }
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unsupported mapper ({:03})", i)
+                ))
             }
         }
     }
