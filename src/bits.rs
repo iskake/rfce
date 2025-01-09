@@ -10,14 +10,14 @@ pub trait Bitwise: PrimInt {
     /// assert_eq!(0xff.test_bit(7), true);
     /// assert_eq!(0xefff.test_bit(15), false);
     /// ```
-    fn test_bit(&self, i: usize) -> bool;
+    fn test_bit(self, i: usize) -> bool;
 }
 
 impl<T> Bitwise for T where T: PrimInt {
-    fn test_bit(&self, i: usize) -> bool {
+    fn test_bit(self, i: usize) -> bool {
         let zero = T::zero();
         let one = T::one();
-        (*self & (one << i)) != zero
+        (self & (one << i)) != zero
     }
 }
 
