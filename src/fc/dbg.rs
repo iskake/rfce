@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::io::{self, Error, Write};
 use std::path::Path;
 
@@ -31,7 +31,7 @@ impl std::fmt::Display for Breakpoint {
 pub struct Debugger {
     fc: FC, // TODO? use Rc<RefCell<FC>> so we can use the debugger inside of the GUI?
     last_input: String,
-    breakpoints: HashSet<Breakpoint>,
+    breakpoints: FxHashSet<Breakpoint>,
     ed_mode: bool, // :)
 }
 
@@ -41,7 +41,7 @@ impl Debugger {
         Debugger {
             fc,
             last_input: String::from(""),
-            breakpoints: HashSet::new(),
+            breakpoints: FxHashSet::default(),
             ed_mode: false,
         }
     }
