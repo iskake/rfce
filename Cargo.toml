@@ -1,7 +1,7 @@
 [package]
 name = "rfce"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 log = "0.4.22"
@@ -12,7 +12,7 @@ imgui-sdl2-support = "0.13.0"
 imgui = "0.12.0"
 imgui-glow-renderer = "0.13.0"
 rfd = "0.15.2"
-image = "0.25.5"
+image = { version = "0.25.5", default-features = false, features = ["png"] }
 rgb = "0.8.50"
 rustc-hash = "2.1.0"
 
