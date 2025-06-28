@@ -203,7 +203,12 @@ impl GUI {
 
         let ui = self.imgui.new_frame();
 
-        if should_display_menubar {
+        // Currently, when you try to render without any `draw_data` (`cmd_lists` is `null`)
+        // `imgui-glow-renderer` will fail in debug builds due to UB checks.
+        // So, as a workaround just always display the menu bar (even though it cuts
+        // into the rendered image...)
+        // TODO: make it possible to not display the menu bar....
+        if should_display_menubar || true {
             if let Some(menu_bar) = ui.begin_main_menu_bar() {
                 if let Some(menu) = ui.begin_menu("File") {
                     if ui.menu_item("Load ROM") {
