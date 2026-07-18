@@ -10,7 +10,7 @@ pub struct Tile<'a> {
 impl<'a> Tile<'a> {
     /// Creates a tile from a slice.
     /// Returns either a tile wrapped in `Some`, or `None` if the length of `buf` is not 16.
-    pub fn from_slice(buf: &[u8]) -> Option<Tile> {
+    pub fn from_slice(buf: &[u8]) -> Option<Tile<'_>> {
         if buf.len() == 16 {
             Some(Tile { bytes: buf })
         } else {

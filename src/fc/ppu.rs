@@ -1,8 +1,10 @@
 mod tile;
+mod sprite;
 
-use log::debug;
+use log::{debug, info};
 use rgb::*;
 use tile::Tile;
+use sprite::Sprite;
 
 use crate::bits::Bitwise;
 
@@ -21,6 +23,10 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 
 pub const PICTURE_WIDTH:  usize = 256;
 pub const PICTURE_HEIGHT: usize = 240;
+
+const SPRITE_WIDTH: usize = 8;
+const SPRITE_HEIGHT_SMALL: usize = 8;
+const SPRITE_HEIGHT_LARGE: usize = 16;
 
 pub const SCANLINE_DURATION: u32 = 341;
 pub const FRAME_SCANLINES:   u32 = 262;
@@ -56,9 +62,47 @@ pub struct PPU {
     curr_pattern_hi: u8,
     shift_reg_lo: u16,
     shift_reg_hi: u16,
+    // OAM things
+    oam_sys: OAMSystem,
+
     // ??vvv
     frame_buf: Vec<u8>,
     nametable_buf: Vec<u8>,
+}
+
+struct OAMSystem {
+    sprites: [Sprite; 8],
+    oam_secondary: [u8; OAM_SIZE / 2],
+    oam_tmp: u8,
+    n: usize,
+    m: usize,
+    oam_ptr: usize,
+    copy_state: u8,
+    is_full: bool,
+    curr_in_bounds: bool,
+    found_sprite0: bool,
+}
+
+impl OAMSystem {
+    pub fn new() -> OAMSystem {
+        OAMSystem {
+            sprites: [ Sprite {
+                y: 0,
+                tile: 0,
+                attrs: 0,
+                x: 0
+            }; 8],
+            oam_secondary: [0; OAM_SIZE / 2],
+            oam_ptr: 0,
+            oam_tmp: 0,
+            n: 0,
+            m: 0,
+            copy_state: 0,
+            is_full: false,
+            curr_in_bounds: false,
+            found_sprite0: false,
+        }
+    }
 }
 
 impl PPU {
@@ -68,6 +112,9 @@ impl PPU {
             // chr: Box::new([0; PATTERN_TABLE_SIZE * 2].to_vec()),
             pal: [0; PALETTE_RAM_SIZE],
             oam: [0; OAM_SIZE * SPRITE_SIZE],
+
+            oam_sys: OAMSystem::new(),
+
             vram: [0; VRAM_SIZE],
             cycle: 0,
             scanline: 0,
@@ -156,6 +203,10 @@ impl PPU {
             assert!(self.cycle < SCANLINE_DURATION);
             assert!(self.scanline < FRAME_SCANLINES);
 
+            if self.scanline != FRAME_SCANLINES - 1 && self.rendering_enabled() {
+                // No sprite eval on pre-prender scanline
+                self.sprite_eval();
+            }
             self.render(mem);
 
             self.cycle += 1;
@@ -199,7 +250,7 @@ impl PPU {
             self.pal[((addr - 0x3f00) % 0x20) as usize] = val;
         }
     }
-    
+
     pub fn read_mmio(&mut self, addr: u16, mem: &mut MemMap) -> u8 {
         self.read_reg(addr, mem)
     }
@@ -372,6 +423,116 @@ impl PPU {
         self.reg.mask.bg_enable || self.reg.mask.sprites_enable
     }
 
+    /// Evaluate sprites for the next scanline.
+    #[inline]
+    fn sprite_eval(&mut self) {
+        let o = &mut self.oam_sys;
+        match self.cycle {
+            1..=64 => {         // Clear secondary OAM
+                if self.cycle & 1 == 0 {
+                    // TODO: use `self.read_oamdata()`?
+                    o.oam_tmp = 0xff;
+                } else {
+                    // TODO: see above (and nesdev PPU sprite evaluation)
+                    o.oam_secondary[self.cycle as usize / 2] = 0xff;
+                }
+
+                o.copy_state = 0;
+                o.oam_ptr = 0;
+            },
+            65..=256 => {       // Sprite evaluation
+                if self.cycle & 1 == 1 {
+                    // Read from (primary) oam
+                    o.oam_tmp = self.oam[o.n * 4 + o.m];
+                } else {
+                    // Write to secondary oam
+                    if !o.is_full {
+                        o.oam_secondary[o.oam_ptr] = o.oam_tmp;
+
+                        if o.m == 0 {
+                            let y_coord = o.oam_tmp as u32;
+                            let sprite_height = if self.reg.control.sprites_large {
+                                SPRITE_HEIGHT_LARGE
+                            } else {
+                                SPRITE_HEIGHT_SMALL
+                            } as u32;
+                            o.curr_in_bounds = self.scanline >= y_coord && self.scanline < y_coord + sprite_height;
+                        }
+
+                        if o.curr_in_bounds {
+                            o.curr_in_bounds = true;
+                            o.oam_ptr += 1;
+                            o.m += 1;
+
+                            if o.m == 4 {
+                                if o.n == 0 {
+                                    // Must be first found sprite
+                                    o.found_sprite0 = true;
+                                }
+                                o.m = 0;
+                                o.n += 1;
+                                o.curr_in_bounds = false;
+                            }
+                        } else {
+                            o.m = 0;
+                            o.n += 1;
+                        }
+
+                        if o.oam_ptr == 32 {
+                            o.is_full = true;
+                        }
+
+                        // TODO: sprite overflow things
+                        if o.n == 64 {
+                            // n overflowed
+                            o.n = 0;
+                        } else if o.oam_ptr <= 32 {
+                            // Less than 8 sprites have been found
+                        } else if o.oam_ptr == 33 {
+                            // Exactly 8 sprites have been found
+                        }
+                    } else {
+                        // ...
+                    }
+                }
+            },
+            257..=320 => {      // Sprite fetches
+                if self.cycle == 257 {
+                    // Use this ptr to index into oam_secondary
+                    o.oam_ptr = 0;
+                }
+
+                let idx = self.cycle as usize & 0b111;
+                match idx {
+                    // Read Y-coord, tile num, attrs, and x coord of selected sprite in oam
+                    1 => o.sprites[o.oam_ptr].y     = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
+                    2 => o.sprites[o.oam_ptr].tile  = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
+                    3 => o.sprites[o.oam_ptr].attrs = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
+                    4 => o.sprites[o.oam_ptr].x     = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
+                    // Read X-coord of the selected sprite in OAM 4 times
+                    // (...or don't?)
+                    5 => o.oam_ptr += 1,
+                    _ => {}
+                }
+
+                // if self.cycle == 320 {
+                    // println!("Sprites: {:?}", o.sprites);
+                // }
+            },
+            321..=340 | 0 => {  // "background render pipeline initialization"
+                // "Read the first byte in secondary OAM (while the PPU fetches the first two background tiles for the next scanline)"
+                o.oam_tmp = o.oam_secondary[0];
+                o.n = 0;
+                o.m = 0;
+                o.oam_ptr = 0;
+                o.is_full = false;
+                o.curr_in_bounds = false;
+                o.found_sprite0 = false;
+            },
+            _ => unreachable!(),
+        }
+    }
+
     #[inline]
     fn render(&mut self, mem: &mut MemMap) {
         // TODO
@@ -383,15 +544,17 @@ impl PPU {
             241..=260 => {  // vblank
                 if self.cycle == 1 && self.scanline == 241 {
                     self.reg.status.vblank = true;
-                    debug!("enabled vblank")
+                    debug!("set PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) vblank flag (bit 7)")
                 }
             },
             261 => {     // dummy scanline (pre-render scanline)
                 self.rendering_fetch_data(mem); // TODO? should be blank scanline?
 
                 if self.cycle == 1 {
-                    debug!("disabled vblank");
                     self.reg.status.vblank = false;
+                    debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) vblank flag (bit 7)");
+                    self.reg.status.sprite_0_hit = false; 
+                    debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) sprite 0 hit flag (bit 6)");
                 }
 
                 if self.cycle >= 280 && self.cycle <= 304 {
@@ -413,7 +576,7 @@ impl PPU {
                 let x = (self.cycle - 1) as usize;
                 let y = self.scanline as usize;
                 let idx = y * PICTURE_WIDTH + x;
-                let px = self.get_next_pixel();
+                let px = self.get_next_pixel(mem);
 
                 self.shl_shift_registers(1);
 
@@ -547,12 +710,76 @@ impl PPU {
     }
 
     #[inline]
-    fn get_next_pixel(&mut self) -> RGB<u8> {
+    fn get_next_pixel(&mut self, mem: &MemMap) -> RGB<u8> {
         let scroll = self.reg.scroll_x;
         let mut color_idx = 0;
 
         let bg_color = ((((self.shift_reg_lo as u16) << scroll) & 0x8000) >> 15)
-                         | ((((self.shift_reg_hi as u16) << scroll) & 0x8000) >> 14);
+                          | ((((self.shift_reg_hi as u16) << scroll) & 0x8000) >> 14);
+
+        let spr_color = 0;
+        for i in 0..8 {
+            let spr = self.oam_sys.sprites[i];
+
+            if spr.y != spr.x && spr.y != 255 && spr.y != 248 {
+                // info!("Sprite has non 255 value?? {spr:?} on scanline: {}", self.scanline);
+            }
+
+            let spr_height = if self.reg.control.sprites_large {
+                SPRITE_HEIGHT_LARGE
+            } else {
+                SPRITE_HEIGHT_SMALL
+            } as u32;
+
+            let y = self.scanline;
+            let x = self.cycle - 1;
+
+            if y >= spr.y.into()
+                && y <= spr.y as u32 + spr_height
+                && x >= spr.x as u32
+                && x <= spr.x as u32 + SPRITE_WIDTH as u32
+            {
+                // Hit sprite
+                let rel_y = (y - spr.y as u32) as u16;
+                let rel_x = (x - spr.x as u32) as usize;
+                let pattern_table_start = self.reg.control.spr_pattern_addr;
+                let tile_idx = if spr_height > SPRITE_HEIGHT_SMALL as u32 {
+                    if y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32 {
+                        // TODO!!
+                        0xff
+                    } else {
+                        // TODO!!
+                        0xff
+                    }
+                } else {
+                    spr.tile
+                };
+
+                let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y);
+                let addr_hi = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y + 8);
+                let tile_line_lo = self.read_addr(addr_lo, mem);
+                let tile_line_hi = self.read_addr(addr_hi, mem);
+
+                println!("spr {i} data at ${addr_lo:04x} & ${addr_hi:04x} ({}, {}): {:08b}{:08b}", x, y, tile_line_lo, tile_line_hi);
+
+                let b0 = tile_line_lo.test_bit(7 - rel_x) as u8;
+                let b1 = tile_line_hi.test_bit(7 - rel_x) as u8;
+                let spr_color = (b1 << 1) | b0;
+
+                // let b0 = self.bytes[y].test_bit(7 - x) as u8;
+                // let b1 = self.bytes[y + 8].test_bit(7 - x) as u8;
+                // (b1 << 1) | b0
+                
+
+                // spr_color = spr.tile;
+
+                if i == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit {
+                    // Hit sprite 0
+                    self.reg.status.sprite_0_hit = true;
+                    info!("Sprite 0 hit");
+                }
+            }
+        }
 
         if self.reg.mask.bg_enable {
             color_idx = bg_color as u8;
@@ -560,7 +787,7 @@ impl PPU {
         let pix_val = color_idx;
 
         // TODO: actually handle scrolling etc.
-        let tile_x = (self.cycle / 8) as usize;
+        let tile_x = ((self.cycle - 1) / 8) as usize;
         let tile_y = (self.scanline / 8) as usize;
 
         let tile_attr = if (scroll as u32 + (self.cycle) % 9) < 9 {

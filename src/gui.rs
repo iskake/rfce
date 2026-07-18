@@ -43,7 +43,11 @@ impl GUI {
         // gl_attr.set_context_profile(GLProfile::Core);
 
         let window = video_subsystem
-            .window("rfce", ppu::PICTURE_WIDTH as u32 * 2, ppu::PICTURE_HEIGHT as u32 * 2)
+            .window(
+                "rfce",
+                ppu::PICTURE_WIDTH as u32 * 2,
+                ppu::PICTURE_HEIGHT as u32 * 2,
+            )
             .position_centered()
             .resizable()
             .build()
@@ -98,55 +102,61 @@ impl GUI {
                 }
             }
 
-            let frame_start = std::time::Instant::now();
-
-            // Run the emulator until it's finished rendering (hits scanline 240)
-            if let Some(fc) = &mut self.fc {
-                if !self.state.emulator_paused {
-                    let start = std::time::Instant::now();
-
-                    fc.run_until_render_done();
-
-                    let end = start.elapsed();
-                    debug!("Time: {:.2?}", end);
-
-                    let frame_buf = fc.get_frame();
-                    update_texture(&mut self.screen_texture, frame_buf);
-                }
-            }
-
-            let divider = if self.state.emulator_60fps {
-                60.0
-            } else {
-                crate::fc::ppu::FRAMERATE
-            };
-            let frame_duration = (1_000_000_000.0 / divider) as u32;
-
-            let frame_time = std::time::Duration::new(0, frame_duration);
-            let delta = frame_start.elapsed();
-            if let Some(time) = frame_time.checked_sub(delta) {
-                ::std::thread::sleep(time);
-            }
-
-            let (window_w, window_h) = self.canvas.window().size();
-            let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
-
-            self.canvas
-                .copy(&self.screen_texture, None, Some(rect))
-                .unwrap();
-            self.canvas.present();
-
-            debug!(
-                "Paused for: {:.2?} (f:{:?})",
-                frame_time.checked_sub(delta),
-                frame_time
-            );
-            debug!("Frame took: {:?}", frame_start.elapsed());
+            self.run_frame();
 
             if !self.state.continue_running {
                 return Ok(());
             }
         }
+    }
+
+    /// Run the emulator for one frame (~16.6ms).
+    fn run_frame(&mut self) {
+        let frame_start = std::time::Instant::now();
+
+        // Run the emulator until it's finished rendering (hits scanline 240)
+        if let Some(fc) = &mut self.fc {
+            if !self.state.emulator_paused {
+                let start = std::time::Instant::now();
+
+                fc.run_until_render_done();
+
+                let end = start.elapsed();
+                debug!("Time: {:.2?}", end);
+
+                let frame_buf = fc.get_frame();
+                update_texture(&mut self.screen_texture, frame_buf);
+            }
+        }
+
+        let divider = if self.state.emulator_60fps {
+            60.0
+        } else {
+            crate::fc::ppu::FRAMERATE
+        };
+        let frame_duration = (1_000_000_000.0 / divider) as u32;
+
+        let frame_time = std::time::Duration::new(0, frame_duration);
+        let delta = frame_start.elapsed();
+        if let Some(time) = frame_time.checked_sub(delta) {
+            ::std::thread::sleep(time);
+        }
+
+        let (window_w, window_h) = self.canvas.window().size();
+        let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
+
+        self.canvas
+            .copy(&self.screen_texture, None, Some(rect))
+            .unwrap();
+        self.canvas.present();
+
+        debug!(
+            "Paused for: {:.2?} (f:{:?})",
+            frame_time.checked_sub(delta),
+            frame_time
+        );
+        debug!("Frame took: {:?}", frame_start.elapsed());
+        debug!("(Pre-sleep: {:?})", delta);
     }
 
     /// Handle the given [Event]. Returns `true` if the event was [Event::Quit].
