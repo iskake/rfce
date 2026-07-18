@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 // mod gl_renderer;
 
 // use gl_renderer::GLRenderer;
-use log::{debug, info};
+use log::{debug, info, warn};
 use sdl3::{
     EventPump, Sdl,
     event::Event,
@@ -13,17 +13,12 @@ use sdl3::{
     video::Window,
 };
 
-use crate::fc::FC;
-
-const SCREEN_WIDTH: u32 = 255;
-const SCREEN_HEIGHT: u32 = 240;
+use crate::fc::{FC, ppu};
 
 pub struct GUI {
     canvas: Canvas<Window>,
     screen_texture: Texture,
-    // State of the GUI
     state: GUIState,
-    // The emulator istelf.
     fc: Option<Box<FC>>,
 }
 
@@ -48,7 +43,7 @@ impl GUI {
         // gl_attr.set_context_profile(GLProfile::Core);
 
         let window = video_subsystem
-            .window("rfce", SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2)
+            .window("rfce", ppu::PICTURE_WIDTH as u32 * 2, ppu::PICTURE_HEIGHT as u32 * 2)
             .position_centered()
             .resizable()
             .build()
@@ -151,7 +146,6 @@ impl GUI {
             if !self.state.continue_running {
                 return Ok(());
             }
-            // Ok(())
         }
     }
 
@@ -160,9 +154,52 @@ impl GUI {
         match event {
             Event::Quit { .. } => return true,
             Event::KeyDown {
-                keycode: Some(Keycode::Escape),
+                keycode: Some(Keycode::Escape | Keycode::P),
                 ..
             } => self.pause_emulation(),
+            Event::KeyDown {
+                keycode: Some(Keycode::R),
+                ..
+            } => {
+                if let Some(f) = &mut self.fc {
+                    info!("Soft reset");
+                    f.reset();
+                }
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::H),
+                ..
+            } => {
+                if let Some(f) = &mut self.fc {
+                    info!("Hard reset");
+                    if let Err(_) = f.reset_hard() {
+                        warn!("Failed to hard reset: no rom loaded")
+                    }
+                }
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::PrintScreen),
+                ..
+            } => {
+                if let Some(fc) = &mut self.fc {
+                    let width = crate::fc::ppu::PICTURE_WIDTH as u32;
+                    let height = crate::fc::ppu::PICTURE_HEIGHT as u32;
+                    let frame_buf = fc.get_frame();
+                    let img: image::RgbImage =
+                        image::RgbImage::from_raw(width, height, frame_buf.to_vec()).unwrap();
+
+                    // TODO: this is probably really dangerous if something other than a
+                    // game is "loaded", or any file named `<romfile>.png` already exists....
+                    let img_path = self.state.curr_rom_path.with_extension("png");
+
+                    info!("Saving screenshot: {}", img_path.display());
+                    if let Err(e) = img.save(img_path) {
+                        warn!("Failed to save screenshot: {}", e);
+                    }
+                } else {
+                    warn!("Failed to save screenshot: no rom loaded")
+                }
+            }
             Event::KeyDown {
                 keycode: Some(Keycode::O),
                 ..
@@ -179,12 +216,15 @@ impl GUI {
         false
     }
 
+    /// Pause emulator
     fn pause_emulation(&mut self) {
         self.state.emulator_paused = !self.state.emulator_paused
     }
 
+    /// Create a new emulator with the given file
     fn load(&mut self, filename: &Path) {
         self.fc = create_fc_from_file(filename).ok();
+        self.state.curr_rom_path = filename.to_path_buf();
     }
 }
 
