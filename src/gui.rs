@@ -3,17 +3,24 @@ use std::path::{Path, PathBuf};
 // mod gl_renderer;
 
 // use gl_renderer::GLRenderer;
-use log::{debug, info, warn};
-use sdl3::{Sdl, event::{Event, WindowEvent}, keyboard::Keycode, video::{GLProfile, SwapInterval, Window}};
+use log::{debug, info};
+use sdl3::{
+    EventPump, Sdl,
+    event::Event,
+    keyboard::Keycode,
+    pixels::PixelFormat,
+    render::{Canvas, FRect, Texture},
+    video::Window,
+};
 
 use crate::fc::FC;
 
+const SCREEN_WIDTH: u32 = 255;
+const SCREEN_HEIGHT: u32 = 240;
+
 pub struct GUI {
-    sdl_context: Sdl,
-    // Note: this is needed to a stop panic: "expected non-zero GL name"
-    _gl_context: sdl3::video::GLContext,
-    window: Window,
-    // renderer: GLRenderer,
+    canvas: Canvas<Window>,
+    screen_texture: Texture,
     // State of the GUI
     state: GUIState,
     // The emulator istelf.
@@ -32,29 +39,30 @@ struct GUIState {
 }
 
 impl GUI {
-    pub fn new() -> GUI {
-        let sdl_context = sdl3::init().unwrap();
+    pub fn new(sdl_context: Sdl) -> GUI {
         let video_subsystem = sdl_context.video().unwrap();
 
-        let gl_attr = video_subsystem.gl_attr();
+        // let gl_attr = video_subsystem.gl_attr();
 
-        gl_attr.set_context_version(3, 3);
-        gl_attr.set_context_profile(GLProfile::Core);
+        // gl_attr.set_context_version(3, 3);
+        // gl_attr.set_context_profile(GLProfile::Core);
 
         let window = video_subsystem
-            .window("rfce", 256 * 2, 240 * 2)
-            .opengl()
+            .window("rfce", SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2)
             .position_centered()
             .resizable()
             .build()
             .unwrap();
 
-        let gl_context = window.gl_create_context().unwrap();
-        window.gl_make_current(&gl_context).unwrap();
+        let canvas = window.into_canvas();
 
-        window.subsystem().gl_set_swap_interval(SwapInterval::Immediate).unwrap();
+        let texture_cretor = canvas.texture_creator();
+        let mut screen_texture = texture_cretor
+            .create_texture_streaming(PixelFormat::RGB24, 255, 240)
+            .unwrap();
 
-        // let gl = glow_context(&window);
+        // The rust sdl3 crate doesn't seem to expose SDL_SCALEMODE_PIXELART, so this is the current best.
+        screen_texture.set_scale_mode(sdl3::render::ScaleMode::Nearest);
 
         let state = GUIState {
             continue_running: true,
@@ -68,48 +76,34 @@ impl GUI {
         };
 
         GUI {
-            sdl_context,
-            _gl_context: gl_context,
-            window,
+            canvas,
+            screen_texture,
             state,
             fc: None,
         }
     }
 
-    pub fn from_file(filename: &Path) -> GUI {
-        let mut gui = GUI::new();
-        let fc = load_rom(filename).ok();
+    pub fn from_file(sdl_context: Sdl, filename: &Path) -> GUI {
+        let mut gui = GUI::new(sdl_context);
+        let fc = create_fc_from_file(filename).ok();
         gui.fc = fc;
         gui.state.curr_rom_path = filename.to_owned();
         gui
     }
 
-    pub fn run_forever(&mut self) -> Result<(), sdl3::Error> {
+    pub fn run(&mut self, mut event_pump: EventPump) -> Result<(), sdl3::Error> {
         info!("Starting GUI run loop");
 
-        let mut event_pump = self.sdl_context.event_pump()?;
         loop {
-            let frame_start = std::time::Instant::now();
-
-            // Handle events
             for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. } => return Ok(()),
-                    Event::KeyDown {
-                        keycode: Some(Keycode::Escape),
-                        ..
-                    } => self.state.emulator_paused = !self.state.emulator_paused,
-                    Event::Window {
-                        win_event: WindowEvent::Resized(_,_),
-                        ..
-                    } => {
-                        let (width, height) = self.window.size();
-                        // self.renderer.update_viewport(width as i32, height as i32);
-                        warn!("tried to change viewport size, but this didn't do anything.")
-                    }
-                    _ => {}
+                let quit_event = self.handle_event(event);
+
+                if quit_event {
+                    return Ok(());
                 }
             }
+
+            let frame_start = std::time::Instant::now();
 
             // Run the emulator until it's finished rendering (hits scanline 240)
             if let Some(fc) = &mut self.fc {
@@ -122,18 +116,9 @@ impl GUI {
                     debug!("Time: {:.2?}", end);
 
                     let frame_buf = fc.get_frame();
-                    // self.renderer.update_texture(frame_buf);
+                    update_texture(&mut self.screen_texture, frame_buf);
                 }
             }
-
-            // Handle rendering
-            // self.platform
-            //     .prepare_frame(&mut self.imgui, &self.window, &event_pump);
-
-            // self.handle_imgui();
-            // let draw_data = self.imgui.render();
-
-            // self.renderer.render(draw_data);
 
             let divider = if self.state.emulator_60fps {
                 60.0
@@ -147,7 +132,15 @@ impl GUI {
             if let Some(time) = frame_time.checked_sub(delta) {
                 ::std::thread::sleep(time);
             }
-            self.window.gl_swap_window();
+
+            let (window_w, window_h) = self.canvas.window().size();
+            let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
+
+            self.canvas
+                .copy(&self.screen_texture, None, Some(rect))
+                .unwrap();
+            self.canvas.present();
+
             debug!(
                 "Paused for: {:.2?} (f:{:?})",
                 frame_time.checked_sub(delta),
@@ -158,151 +151,51 @@ impl GUI {
             if !self.state.continue_running {
                 return Ok(());
             }
+            // Ok(())
         }
     }
 
-//     fn handle_imgui(&mut self) -> () {
-//         let io = self.imgui.io();
+    /// Handle the given [Event]. Returns `true` if the event was [Event::Quit].
+    fn handle_event(&mut self, event: Event) -> bool {
+        match event {
+            Event::Quit { .. } => return true,
+            Event::KeyDown {
+                keycode: Some(Keycode::Escape),
+                ..
+            } => self.pause_emulation(),
+            Event::KeyDown {
+                keycode: Some(Keycode::O),
+                ..
+            } => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter(".NES ROM file", &["nes"])
+                    .pick_file()
+                {
+                    self.load(&path);
+                }
+            }
+            _ => {}
+        }
+        false
+    }
 
-//         let [m_x, m_y] = io.mouse_pos;
-//         let (mouse_x, mouse_y) = (m_x as u32, m_y as u32);
-//         let (window_w, window_h) = self.window.size();
+    fn pause_emulation(&mut self) {
+        self.state.emulator_paused = !self.state.emulator_paused
+    }
 
-//         // Note: NOT using >= / <=, because io.mouse_pos doesn't update when the mouse
-//         // is outside of the window, so we use this as the workaround...
-//         let should_display_menubar =
-//             mouse_x > 0 && mouse_y > 0 && mouse_x < (window_w - 1) && mouse_y < (window_h - 1);
-
-//         let ui = self.imgui.new_frame();
-
-//         // Currently, when you try to render without any `draw_data` (`cmd_lists` is `null`)
-//         // `imgui-glow-renderer` will fail in debug builds due to UB checks.
-//         // So, as a workaround just always display the menu bar (even though it cuts
-//         // into the rendered image...)
-//         // TODO: make it possible to not display the menu bar....
-//         if should_display_menubar || true {
-//             if let Some(menu_bar) = ui.begin_main_menu_bar() {
-//                 if let Some(menu) = ui.begin_menu("File") {
-//                     if ui.menu_item("Load ROM") {
-//                         if let Some(path) = rfd::FileDialog::new()
-//                             .add_filter("rom", &["nes"])
-//                             .pick_file()
-//                         {
-//                             let filename = path.as_path();
-//                             info!("File: {filename:?}");
-//                             match load_rom(filename) {
-//                                 Ok(rom) => {
-//                                     self.fc = Some(rom);
-//                                     // WARNING: extremely scuffed way of doing things follows.
-//                                     self.state.curr_rom_path = if self.fc.is_some() {
-//                                         // idk, seems like great coding conventions to me...
-//                                         let title = path.file_stem().unwrap().to_str().unwrap();
-//                                         self.window.set_title(title).unwrap();
-
-//                                         path.clone()
-//                                     } else {
-//                                         PathBuf::new()
-//                                     };
-//                                     self.state.ui_show_error = false;
-//                                 }
-//                                 Err(e) => {
-//                                     warn!("Error: {}", e);
-//                                     self.state.ui_show_error = true;
-//                                     self.state.ui_last_error = Some(e);
-//                                     self.state.ui_show_error_timer = std::time::Instant::now();
-//                                 }
-//                             }
-//                         }
-//                     }
-
-//                     self.state.continue_running = !ui.menu_item("Quit");
-//                     menu.end();
-//                 }
-//                 if let Some(menu) = ui.begin_menu("Emu") {
-//                     ui.menu_item_config("Pause")
-//                         .build_with_ref(&mut self.state.emulator_paused);
-//                     if ui.menu_item("Reset") {
-//                         if let Some(fc) = &mut self.fc {
-//                             fc.reset();
-//                         } else {
-//                             info!("No emulator")
-//                         }
-//                     }
-//                     if ui.menu_item("Hard reset") {
-//                         if let Some(fc) = &mut self.fc {
-//                             // We don're actually care if it has a rom loaded or not...
-//                             if fc.reset_hard().is_err() {
-//                                 info!("No rom loaded");
-//                             }
-//                         } else {
-//                             info!("No emulator")
-//                         }
-//                     }
-//                     menu.end();
-//                 }
-//                 if let Some(menu) = ui.begin_menu("Misc") {
-//                     ui.menu_item_config("Use integer FPS (60hz)")
-//                         .build_with_ref(&mut self.state.emulator_60fps);
-//                     if ui.menu_item("Save screenshot") {
-//                         if let Some(fc) = &mut self.fc {
-//                             let width = crate::fc::ppu::PICTURE_WIDTH as u32;
-//                             let height = crate::fc::ppu::PICTURE_HEIGHT as u32;
-//                             let frame_buf = fc.get_frame();
-//                             let img: image::RgbImage =
-//                                 image::RgbImage::from_raw(width, height, frame_buf.to_vec())
-//                                     .unwrap();
-
-//                             // TODO: this is probably really dangerous if something other than a
-//                             // game is "loaded", or any file named `<romfile>.png` already exists....
-//                             let img_path = self.state.curr_rom_path.with_extension("png");
-
-//                             info!("Saving screenshot: {}", img_path.display());
-//                             if let Err(e) = img.save(img_path) {
-//                                 warn!("Failed to save screenshot: {}", e);
-//                             }
-//                         } else {
-//                             info!("No emulator")
-//                         }
-//                     }
-//                     menu.end();
-//                 }
-//                 menu_bar.end();
-//             }
-//         }
-
-//         if self.state.ui_show_error {
-//             if let Some(e) = &self.state.ui_last_error {
-//                 ui.window("Error")
-//                     .position_pivot([1.01, 0.0])
-//                     .position(
-//                         [window_w as f32, 0.0],
-//                         Condition::Always,
-//                     )
-//                     .movable(false)
-//                     .resizable(false)
-//                     .collapsible(false)
-//                     .title_bar(false)
-//                     .opened(&mut self.state.ui_show_error)
-//                     .build(|| {
-//                         ui.text(format!("Error loading rom: {}", e));
-//                     });
-
-//                 if self.state.ui_show_error_timer.elapsed() > std::time::Duration::new(5, 0) {
-//                     self.state.ui_show_error = false;
-//                 }
-//             }
-//         }
-//     }
+    fn load(&mut self, filename: &Path) {
+        self.fc = create_fc_from_file(filename).ok();
+    }
 }
 
-fn load_rom(filename: &Path) -> Result<Box<FC>, std::io::Error> {
+fn update_texture(screen_texture: &mut Texture, data: &[u8]) {
+    let _ = screen_texture.with_lock(None, |buf, _pitch| {
+        buf.copy_from_slice(data);
+    });
+}
+
+fn create_fc_from_file(filename: &Path) -> Result<Box<FC>, std::io::Error> {
     let mut fc = FC::from_file(filename)?;
     fc.init();
     Ok(fc)
 }
-
-// fn glow_context(window: &Window) -> glow::Context {
-//     unsafe {
-//         glow::Context::from_loader_function(|s| window.subsystem().gl_get_proc_address(s) as _)
-//     }
-// }
