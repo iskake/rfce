@@ -14,7 +14,7 @@ fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     let headless = args.contains(&"--headless".to_owned());
-    let last_arg_is_nes_file = args[args.len() -1].ends_with(".nes");
+    let last_arg_is_nes_file = args[args.len() - 1].ends_with(".nes");
 
     if headless {
         if last_arg_is_nes_file {
@@ -37,15 +37,22 @@ fn main() -> Result<(), String> {
     } else {
         info!("Starting GUI");
 
-        let mut gui = if last_arg_is_nes_file {
-            let filename = &args[args.len() - 1];
-            info!("Loading .nes file: {filename}");
-            GUI::from_file(Path::new(filename))
-        } else {
-            info!("Starting without ROM");
-            GUI::new()
-        };
-        gui.run_forever();
-        Ok(())
+        let filename = last_arg_is_nes_file.then_some(&args[args.len() - 1]);
+        run_gui(filename)
     }
+}
+
+fn run_gui(filename: Option<&String>) -> Result<(), String> {
+    let sdl_context = sdl3::init().map_err(|e| e.to_string())?;
+    let event_pump = sdl_context.event_pump().map_err(|e| e.to_string())?;
+
+    let mut gui = if let Some(filename) = filename {
+        info!("Loading .nes file: {filename}");
+        GUI::from_file(sdl_context, Path::new(filename))
+    } else {
+        info!("Starting without ROM");
+        GUI::new(sdl_context)
+    };
+
+    gui.run(event_pump).map_err(|e| e.to_string())
 }
