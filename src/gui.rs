@@ -173,6 +173,11 @@ impl GUI {
     fn handle_event(&mut self, event: Event) -> bool {
         match event {
             Event::Quit { .. } => return true,
+            Event::KeyDown { keycode: Some(Keycode::_1), .. } => self.set_scale(1),
+            Event::KeyDown { keycode: Some(Keycode::_2), .. } => self.set_scale(2),
+            Event::KeyDown { keycode: Some(Keycode::_3), .. } => self.set_scale(3),
+            Event::KeyDown { keycode: Some(Keycode::_4), .. } => self.set_scale(4),
+            Event::KeyDown { keycode: Some(Keycode::_5), .. } => self.set_scale(5),
             Event::KeyDown {
                 keycode: Some(Keycode::Escape | Keycode::P),
                 ..
@@ -271,6 +276,11 @@ impl GUI {
 
     fn disable_fast_forward(&mut self) {
         self.state.fast_forward = false;
+    }
+
+    fn set_scale(&mut self, scale: u32) {
+        let window = self.canvas.window_mut();
+        window.set_size(ppu::PICTURE_WIDTH as u32 * scale, ppu::PICTURE_HEIGHT as u32 * scale).unwrap();
     }
 }
 
