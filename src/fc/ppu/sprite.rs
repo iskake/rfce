@@ -6,6 +6,7 @@ const SPRITE_ATTR_FLIP_V: u8   = 0b10000000;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Sprite {
+    pub idx: u8,
     pub y: u8,
     pub tile: u8,
     pub attrs: u8,

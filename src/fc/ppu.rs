@@ -88,6 +88,7 @@ impl OAMSystem {
     pub fn new() -> OAMSystem {
         OAMSystem {
             sprites: [ Sprite {
+                idx: 0xff,
                 y: 0,
                 tile: 0,
                 attrs: 0,
@@ -478,6 +479,9 @@ impl PPU {
                                     // Must be first found sprite
                                     o.found_sprite0 = true;
                                 }
+
+                                o.sprites[(o.oam_ptr - 3) / 4].idx = o.n as u8;
+
                                 o.m = 0;
                                 o.n += 1;
                                 o.curr_in_bounds = false;
@@ -729,6 +733,7 @@ impl PPU {
                 && y-1 <= spr.y as u32 + spr_height
                 && x >= spr.x as u32
                 && x < spr.x as u32 + SPRITE_WIDTH as u32
+                && self.reg.mask.sprites_enable
             {
                 // Hit sprite
                 let rel_y = (y-1 - spr.y as u32) as u16;
@@ -764,12 +769,11 @@ impl PPU {
                 let b0 = tile_line_lo.test_bit(rel_x) as u8;
                 let b1 = tile_line_hi.test_bit(rel_x) as u8;
 
-
                 spr_color = (b1 << 1) | b0;
                 spr_in_front = spr.in_front();
 
                 // TODO: one cycle earlier than mesen
-                if i == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit {
+                if spr.idx == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit && x != 255 {
                     // Hit sprite 0
                     self.reg.status.sprite_0_hit = true;
                     debug!("Sprite 0 hit at (line: {}, cyc: {})", self.scanline, self.cycle);
