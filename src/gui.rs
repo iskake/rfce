@@ -26,6 +26,7 @@ struct GUIState {
     continue_running: bool,
     emulator_paused: bool,
     emulator_60fps: bool,
+    fast_forward: bool,
     // debugging_view: bool,
     curr_rom_path: PathBuf,
     ui_show_error: bool,
@@ -67,6 +68,7 @@ impl GUI {
             continue_running: true,
             emulator_paused: false,
             emulator_60fps: false,
+            fast_forward: false,
             // debugging_view: false,
             curr_rom_path: PathBuf::new(),
             ui_show_error: false,
@@ -138,7 +140,7 @@ impl GUI {
 
         let frame_time = std::time::Duration::new(0, frame_duration);
         let delta = frame_start.elapsed();
-        if let Some(time) = frame_time.checked_sub(delta) {
+        if !self.state.fast_forward && let Some(time) = frame_time.checked_sub(delta) {
             ::std::thread::sleep(time);
         }
 
@@ -167,6 +169,14 @@ impl GUI {
                 keycode: Some(Keycode::Escape | Keycode::P),
                 ..
             } => self.pause_emulation(),
+            Event::KeyDown {
+                keycode: Some(Keycode::Tab),
+                ..
+            } => self.enable_fast_forward(),
+            Event::KeyUp {
+                keycode: Some(Keycode::Tab),
+                ..
+            } => self.disable_fast_forward(),
             Event::KeyDown {
                 keycode: Some(Keycode::R),
                 ..
@@ -235,6 +245,14 @@ impl GUI {
     fn load(&mut self, filename: &Path) {
         self.fc = create_fc_from_file(filename).ok();
         self.state.curr_rom_path = filename.to_path_buf();
+    }
+
+    fn enable_fast_forward(&mut self) {
+        self.state.fast_forward = true;
+    }
+
+    fn disable_fast_forward(&mut self) {
+        self.state.fast_forward = false;
     }
 }
 
