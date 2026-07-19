@@ -1,8 +1,5 @@
 use std::path::{Path, PathBuf};
 
-// mod gl_renderer;
-
-// use gl_renderer::GLRenderer;
 use log::{debug, info, warn};
 use sdl3::{
     EventPump, Sdl,
@@ -31,7 +28,7 @@ struct GUIState {
     // debugging_view: bool,
     curr_rom_path: PathBuf,
     ui_show_error: bool,
-    ui_last_error: Option<std::io::Error>,
+    ui_last_error: Option<String>,
     ui_show_error_timer: std::time::Instant,
 }
 
@@ -39,17 +36,13 @@ impl GUI {
     pub fn new(sdl_context: Sdl) -> GUI {
         let video_subsystem = sdl_context.video().unwrap();
 
-        // let gl_attr = video_subsystem.gl_attr();
-
-        // gl_attr.set_context_version(3, 3);
-        // gl_attr.set_context_profile(GLProfile::Core);
-
         let window = video_subsystem
             .window(
                 "rfce",
                 ppu::PICTURE_WIDTH as u32 * 2,
                 ppu::PICTURE_HEIGHT as u32 * 2,
             )
+            .high_pixel_density()
             .position_centered()
             .resizable()
             .build()
@@ -90,6 +83,7 @@ impl GUI {
         }
     }
 
+    /// Create a new GUI, loading `filename` into a new emulator.
     pub fn from_file(sdl_context: Sdl, filename: &Path) -> GUI {
         let mut gui = GUI::new(sdl_context);
         let fc = create_fc_from_file(filename).ok();
@@ -98,6 +92,7 @@ impl GUI {
         gui
     }
 
+    /// Run the GUI until it is manually stopped or an error occurs.
     pub fn run(&mut self, mut event_pump: EventPump) -> Result<(), sdl3::Error> {
         info!("Starting GUI run loop");
 
@@ -136,6 +131,7 @@ impl GUI {
                 update_texture(&mut self.screen_texture, frame_buf);
             }
         }
+
         if self.state.frame_advancing {
             self.state.frame_advancing = false;
             self.state.emulator_paused = true;
@@ -156,7 +152,7 @@ impl GUI {
             ::std::thread::sleep(time);
         }
 
-        let (window_w, window_h) = self.canvas.window().size();
+        let (window_w, window_h) = self.canvas.window().size_in_pixels();
         let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
 
         self.canvas
@@ -224,8 +220,8 @@ impl GUI {
                 ..
             } => {
                 if let Some(fc) = &mut self.fc {
-                    let width = crate::fc::ppu::PICTURE_WIDTH as u32;
-                    let height = crate::fc::ppu::PICTURE_HEIGHT as u32;
+                    let width = ppu::PICTURE_WIDTH as u32;
+                    let height = ppu::PICTURE_HEIGHT as u32;
                     let frame_buf = fc.get_frame();
                     let img: image::RgbImage =
                         image::RgbImage::from_raw(width, height, frame_buf.to_vec()).unwrap();
@@ -278,12 +274,14 @@ impl GUI {
     }
 }
 
+/// Update the screen texture.
 fn update_texture(screen_texture: &mut Texture, data: &[u8]) {
     let _ = screen_texture.with_lock(None, |buf, _pitch| {
         buf.copy_from_slice(data);
     });
 }
 
+/// Create a new [FC] struct from the given file.
 fn create_fc_from_file(filename: &Path) -> Result<Box<FC>, std::io::Error> {
     let mut fc = FC::from_file(filename)?;
     fc.init();
