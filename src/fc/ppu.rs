@@ -502,6 +502,11 @@ impl PPU {
                     o.oam_ptr = 0;
                 }
 
+                // TODO: check when exactly this happens
+                if o.oam_ptr > 7 {
+                    return;
+                }
+
                 let idx = self.cycle as usize & 0b111;
                 match idx {
                     // Read Y-coord, tile num, attrs, and x coord of selected sprite in oam
@@ -712,12 +717,13 @@ impl PPU {
     #[inline]
     fn get_next_pixel(&mut self, mem: &MemMap) -> RGB<u8> {
         let scroll = self.reg.scroll_x;
-        let mut color_idx = 0;
 
         let bg_color = ((((self.shift_reg_lo as u16) << scroll) & 0x8000) >> 15)
                           | ((((self.shift_reg_hi as u16) << scroll) & 0x8000) >> 14);
 
-        let spr_color = 0;
+        let mut spr_color = 0;
+        let mut spr_in_front = false;
+        let mut found_sprite = None;
         for i in 0..8 {
             let spr = self.oam_sys.sprites[i];
 
@@ -735,24 +741,29 @@ impl PPU {
             let x = self.cycle - 1;
 
             if y >= spr.y.into()
-                && y <= spr.y as u32 + spr_height
+                && y-1 <= spr.y as u32 + spr_height
                 && x >= spr.x as u32
-                && x <= spr.x as u32 + SPRITE_WIDTH as u32
+                && x < spr.x as u32 + SPRITE_WIDTH as u32
             {
                 // Hit sprite
-                let rel_y = (y - spr.y as u32) as u16;
+                let rel_y = (y-1 - spr.y as u32) as u16;
                 let rel_x = (x - spr.x as u32) as usize;
                 let pattern_table_start = self.reg.control.spr_pattern_addr;
+
                 let tile_idx = if spr_height > SPRITE_HEIGHT_SMALL as u32 {
                     if y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32 {
-                        // TODO!!
-                        0xff
+                        todo!("8x16 sprite tile 1")
                     } else {
-                        // TODO!!
-                        0xff
+                        todo!("8x16 sprite tile 2")
                     }
                 } else {
                     spr.tile
+                };
+
+                let rel_y = if spr.flipped_vertical() {
+                    7 - rel_y
+                } else {
+                    rel_y
                 };
 
                 let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y);
@@ -760,52 +771,69 @@ impl PPU {
                 let tile_line_lo = self.read_addr(addr_lo, mem);
                 let tile_line_hi = self.read_addr(addr_hi, mem);
 
-                println!("spr {i} data at ${addr_lo:04x} & ${addr_hi:04x} ({}, {}): {:08b}{:08b}", x, y, tile_line_lo, tile_line_hi);
+                // info!("spr {i} data at ${addr_lo:04x} & ${addr_hi:04x} ({}, {}): {:08b}{:08b}", x, y, tile_line_lo, tile_line_hi);
 
-                let b0 = tile_line_lo.test_bit(7 - rel_x) as u8;
-                let b1 = tile_line_hi.test_bit(7 - rel_x) as u8;
-                let spr_color = (b1 << 1) | b0;
+                let rel_x = if spr.flipped_horizontal() {
+                    rel_x
+                } else {
+                    7 - rel_x
+                };
+                let b0 = tile_line_lo.test_bit(rel_x) as u8;
+                let b1 = tile_line_hi.test_bit(rel_x) as u8;
 
-                // let b0 = self.bytes[y].test_bit(7 - x) as u8;
-                // let b1 = self.bytes[y + 8].test_bit(7 - x) as u8;
-                // (b1 << 1) | b0
-                
 
-                // spr_color = spr.tile;
+                spr_color = (b1 << 1) | b0;
+                spr_in_front = spr.in_front();
 
                 if i == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit {
                     // Hit sprite 0
                     self.reg.status.sprite_0_hit = true;
-                    info!("Sprite 0 hit");
+                    debug!("Sprite 0 hit");
+                }
+
+                found_sprite = Some(spr);
+
+                // more checks?
+                if spr_color != 0 {
+                    break;
                 }
             }
         }
 
-        if self.reg.mask.bg_enable {
-            color_idx = bg_color as u8;
-        }
+        let (color_idx, use_sprite) = if self.reg.mask.sprites_enable && (spr_in_front || bg_color == 0) && spr_color != 0 {
+            (spr_color, true)
+        } else if self.reg.mask.bg_enable {
+            (bg_color as u8, false)
+        } else {
+            (0, false)
+        };
+
         let pix_val = color_idx;
 
         // TODO: actually handle scrolling etc.
-        let tile_x = ((self.cycle - 1) / 8) as usize;
-        let tile_y = (self.scanline / 8) as usize;
-
-        let tile_attr = if (scroll as u32 + (self.cycle) % 9) < 9 {
-            self.prev_attribute_byte
+        let pal_idx = if use_sprite && let Some(spr) = found_sprite {
+            spr.palette()
         } else {
-            self.curr_attribute_byte
-        };
+            let tile_x = ((self.cycle - 1) / 8) as usize;
+            let tile_y = (self.scanline / 8) as usize;
 
-        let pal_idx = self.pal_idx_from_attr(tile_attr, tile_x, tile_y);
-        let px = self.pixel_color(pal_idx, pix_val, false);
+            let tile_attr = if (scroll as u32 + (self.cycle) % 9) < 9 {
+                self.prev_attribute_byte
+            } else {
+                self.curr_attribute_byte
+            };
+
+            self.pal_idx_from_attr(tile_attr, tile_x, tile_y)
+        };
+        let px = self.pixel_color(pal_idx, pix_val, use_sprite);
 
         as_rgb(px)
     }
 
     /// Get the color of a specific pixel / palette pair.
     fn pixel_color(&self, pal_idx: u8, pix_val: u8, sprite: bool) -> u8 {
-        assert!(pal_idx == (pal_idx & 0b11));
-        assert!(pix_val == (pix_val & 0b11));
+        debug_assert!(pal_idx == (pal_idx & 0b11));
+        debug_assert!(pix_val == (pix_val & 0b11));
 
         let mut idx = ((sprite as u8) << 4) | (pal_idx << 2) | pix_val;
 
