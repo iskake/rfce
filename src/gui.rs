@@ -27,6 +27,7 @@ struct GUIState {
     emulator_paused: bool,
     emulator_60fps: bool,
     fast_forward: bool,
+    frame_advancing: bool,
     // debugging_view: bool,
     curr_rom_path: PathBuf,
     ui_show_error: bool,
@@ -58,7 +59,11 @@ impl GUI {
 
         let texture_cretor = canvas.texture_creator();
         let mut screen_texture = texture_cretor
-            .create_texture_streaming(PixelFormat::RGB24, 255, 240)
+            .create_texture_streaming(
+                PixelFormat::RGB24,
+                ppu::PICTURE_WIDTH as u32,
+                ppu::PICTURE_HEIGHT as u32,
+            )
             .unwrap();
 
         // The rust sdl3 crate doesn't seem to expose SDL_SCALEMODE_PIXELART, so this is the current best.
@@ -69,6 +74,7 @@ impl GUI {
             emulator_paused: false,
             emulator_60fps: false,
             fast_forward: false,
+            frame_advancing: false,
             // debugging_view: false,
             curr_rom_path: PathBuf::new(),
             ui_show_error: false,
@@ -130,6 +136,10 @@ impl GUI {
                 update_texture(&mut self.screen_texture, frame_buf);
             }
         }
+        if self.state.frame_advancing {
+            self.state.frame_advancing = false;
+            self.state.emulator_paused = true;
+        }
 
         let divider = if self.state.emulator_60fps {
             60.0
@@ -140,7 +150,9 @@ impl GUI {
 
         let frame_time = std::time::Duration::new(0, frame_duration);
         let delta = frame_start.elapsed();
-        if !self.state.fast_forward && let Some(time) = frame_time.checked_sub(delta) {
+        if !self.state.fast_forward
+            && let Some(time) = frame_time.checked_sub(delta)
+        {
             ::std::thread::sleep(time);
         }
 
@@ -184,6 +196,16 @@ impl GUI {
                 if let Some(f) = &mut self.fc {
                     info!("Soft reset");
                     f.reset();
+                }
+            }
+            Event::KeyDown {
+                keycode: Some(Keycode::RightBracket),
+                ..
+            } => {
+                if let Some(f) = &mut self.fc {
+                    info!("Frame advance");
+                    self.state.emulator_paused = false;
+                    self.state.frame_advancing = true;
                 }
             }
             Event::KeyDown {
