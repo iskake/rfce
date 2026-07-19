@@ -24,7 +24,8 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 pub const PICTURE_WIDTH:  usize = 256;
 pub const PICTURE_HEIGHT: usize = 240;
 
-const SPRITE_WIDTH: usize = 8;
+const TILE_SIZE_PIXELS: usize = 8;
+const SPRITE_WIDTH: usize = TILE_SIZE_PIXELS;
 const SPRITE_HEIGHT_SMALL: usize = 8;
 const SPRITE_HEIGHT_LARGE: usize = 16;
 
@@ -312,13 +313,14 @@ impl PPU {
     fn write_ppuctrl(&mut self, val: u8) -> () {
         // TODO: check for cycles < 29658 before allowing writes?
         self.reg.control = val.into();
-        debug!("Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x})");
+        self.reg.t = (self.reg.t & 0xf3ff) | (val as u16 & 0b11) << 10;
+        debug!("Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x}) at (line: {}, cyc: {})", self.scanline, self.cycle);
     }
 
     fn write_ppumask(&mut self, val: u8) {
         // TODO: "writes ignored until first pre-render scanline"
         self.reg.mask = val.into();
-        debug!("Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x})");
+        debug!("Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x}) at (line: {}, cyc: {})", self.scanline, self.cycle);
     }
 
     fn read_ppustatus(&mut self) -> u8 {
@@ -351,28 +353,35 @@ impl PPU {
     }
 
     fn write_ppuscroll(&mut self, val: u8) {
-        if !self.reg.write_toggle {
-            self.reg.t = self.reg.t & 0x7f00 | (val as u16);
+        if self.reg.write_toggle {
+            let y_coarse = (val as u16 & 0b11111000) << 2;
+            let y_fine   = (val as u16 & 0b00000111) << 12;
+
+            self.reg.t = self.reg.t & 0x8c1f | y_coarse | y_fine;
         } else {
-            self.reg.t = (((val & 0x7f) as u16) << 8) | self.reg.t & 0xff;
-            self.reg.scroll_x = val & 0x07;
+            let x_coarse = (val & 0b11111000) as u16 >> 3;
+            let x_fine    =  val & 0b00000111;
+
+            self.reg.scroll_x = x_fine;
+            self.reg.t = self.reg.t & 0xffe0 | x_coarse;
         }
 
-        debug!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {})", self.reg.write_toggle);
+        // info!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {}) at (line: {}, cyc: {})", self.reg.write_toggle, self.scanline, self.cycle);
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
         // TODO!!!! this should seemingly be delayed by some cycles
-        self.reg.addr_bus = self.reg.t;
-        self.reg.v = self.reg.addr_bus;
+        // actually, should it even be done at all?
+        // self.reg.addr_bus = self.reg.t;
+        // self.reg.v = self.reg.addr_bus;
     }
 
     fn write_ppuaddr(&mut self, val: u8) {
         // TODO? "palette corruption" & "bus conflict"?
-        if !self.reg.write_toggle {
-            self.reg.t = ((((val & 0x7f) as u16) << 8) | self.reg.t & 0xff) & 0x3fff;
+        if self.reg.write_toggle {
+            self.reg.t = (self.reg.t & 0xff00) | (val as u16);
         } else {
-            self.reg.t = (self.reg.t & 0x7f00 | (val as u16)) & 0x3fff; // ?
+            self.reg.t = (self.reg.t & 0x00ff) | ((val as u16 & 0x3f) << 8);
         }
 
         debug!("Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})", self.reg.write_toggle);
@@ -581,6 +590,7 @@ impl PPU {
                 let x = (self.cycle - 1) as usize;
                 let y = self.scanline as usize;
                 let idx = y * PICTURE_WIDTH + x;
+
                 let px = self.get_next_pixel(mem);
 
                 self.shl_shift_registers(1);
@@ -593,6 +603,12 @@ impl PPU {
                         // "Copy horizontal scrolling value from t"
                         self.reg.v = (self.reg.v & !0x041f) | (self.reg.t & 0x041f);
                     }
+                }
+
+                if self.scanline >= 280 && self.scanline < 304 {
+                    // ...
+                    self.reg.v = (self.reg.v & 0x041f) | (self.reg.t & !0x041f);
+
                 }
 
                 // TODO: garbage reads?
@@ -649,21 +665,23 @@ impl PPU {
                 self.prev_attribute_byte = self.curr_attribute_byte;
                 self.curr_attribute_byte = self.temp_attribute_byte;
 
-                let addr = 0x2000 | (self.reg.v & 0x0fff);
-                self.curr_tile_idx = self.read_addr(addr, mem);
+                let tile_addr = 0x2000 | (self.reg.v & 0x0fff);
+
+                self.curr_tile_idx = self.read_addr(tile_addr, mem);
             },
             3 => {  // attribute table byte
                 let v = self.reg.v;
-                let addr = 0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
-                let val = self.read_addr(addr, mem);
+                let attr_addr = 0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+                let val = self.read_addr(attr_addr, mem);
 
                 // Since it changes mid tile rendering, we need the pevious one too.
                 self.temp_attribute_byte = val;
             },
-            5 | 7 => {  // pattern table tile low
+            5 | 7 => {  // pattern table tile low / high
                 let bg_addr = self.reg.control.bg_pattern_addr;
-                let y_scroll = self.reg.v >> 12;
-                let addr: u16 = ((self.curr_tile_idx as u16) << 4) | y_scroll | bg_addr;
+                let y_scroll = (self.reg.v) >> 12;
+                let tile_addr = (self.curr_tile_idx as u16) << 4;
+                let addr: u16 = tile_addr | y_scroll | bg_addr;
 
                 if c == 5 {
                     self.curr_pattern_lo = self.read_addr(addr, mem)
@@ -680,46 +698,16 @@ impl PPU {
             }
             _ => {},
         }
-
-        // if self.cycle == 160 && self.scanline == 48 {
-        //     let addr: u16 = ((self.curr_tile_idx as u16) << 4) | (self.reg.v >> 12) | self.reg.control.bg_pattern_addr;
-        //     println!("tile_idx: {:02x} attribute byte: {:02x}, chr_h,l: {:02x},{:02x} (addr:{:04x})\n shift: {:04x},{:04x} v: {:04x} at ({},{})",
-        //         self.curr_tile_idx,
-        //         self.curr_attribute_byte,
-        //         self.curr_pattern_hi,
-        //         self.curr_pattern_lo,
-        //         addr,
-        //         self.shift_reg_lo,
-        //         self.shift_reg_hi,
-        //         self.reg.v,
-        //         self.cycle,
-        //         self.scanline
-        //     );
-        // }
-
-        // if self.cycle == 72+8 && self.scanline == 144 {
-        //     let addr: u16 = ((self.curr_tile_idx as u16) << 4) | (self.reg.v >> 12) | self.reg.control.bg_pattern_addr;
-        //     println!("tile_idx: {:02x} attribute byte: {:02x}, chr_h,l: {:02x},{:02x} (addr:{:04x})\n shift: {:04x},{:04x} v: {:04x} at ({},{})",
-        //         self.curr_tile_idx,
-        //         self.curr_attribute_byte,
-        //         self.curr_pattern_hi,
-        //         self.curr_pattern_lo,
-        //         addr,
-        //         self.shift_reg_lo,
-        //         self.shift_reg_hi,
-        //         self.reg.v,
-        //         self.cycle,
-        //         self.scanline
-        //     );
-        // }
     }
 
     #[inline]
     fn get_next_pixel(&mut self, mem: &MemMap) -> RGB<u8> {
-        let scroll = self.reg.scroll_x;
+        let fine_scroll = self.reg.scroll_x;
+        let y = self.scanline;
+        let x = self.cycle - 1;
 
-        let bg_color = ((((self.shift_reg_lo as u16) << scroll) & 0x8000) >> 15)
-                          | ((((self.shift_reg_hi as u16) << scroll) & 0x8000) >> 14);
+        let bg_color = ((((self.shift_reg_lo as u16) << fine_scroll) & 0x8000) >> 15)
+                          | ((((self.shift_reg_hi as u16) << fine_scroll) & 0x8000) >> 14);
 
         let mut spr_color = 0;
         let mut spr_in_front = false;
@@ -736,9 +724,6 @@ impl PPU {
             } else {
                 SPRITE_HEIGHT_SMALL
             } as u32;
-
-            let y = self.scanline;
-            let x = self.cycle - 1;
 
             if y >= spr.y.into()
                 && y-1 <= spr.y as u32 + spr_height
@@ -771,8 +756,6 @@ impl PPU {
                 let tile_line_lo = self.read_addr(addr_lo, mem);
                 let tile_line_hi = self.read_addr(addr_hi, mem);
 
-                // info!("spr {i} data at ${addr_lo:04x} & ${addr_hi:04x} ({}, {}): {:08b}{:08b}", x, y, tile_line_lo, tile_line_hi);
-
                 let rel_x = if spr.flipped_horizontal() {
                     rel_x
                 } else {
@@ -785,10 +768,11 @@ impl PPU {
                 spr_color = (b1 << 1) | b0;
                 spr_in_front = spr.in_front();
 
+                // TODO: one cycle earlier than mesen
                 if i == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit {
                     // Hit sprite 0
                     self.reg.status.sprite_0_hit = true;
-                    debug!("Sprite 0 hit");
+                    debug!("Sprite 0 hit at (line: {}, cyc: {})", self.scanline, self.cycle);
                 }
 
                 found_sprite = Some(spr);
@@ -810,14 +794,16 @@ impl PPU {
 
         let pix_val = color_idx;
 
-        // TODO: actually handle scrolling etc.
         let pal_idx = if use_sprite && let Some(spr) = found_sprite {
             spr.palette()
         } else {
-            let tile_x = ((self.cycle - 1) / 8) as usize;
-            let tile_y = (self.scanline / 8) as usize;
+            let scroll_x = fine_scroll as usize | (self.reg.t as usize & 0b11111) << 3;
 
-            let tile_attr = if (scroll as u32 + (self.cycle) % 9) < 9 {
+            let tile_x = (x as usize + scroll_x as usize) / TILE_SIZE_PIXELS;
+            // TODO: vertical scrolling
+            let tile_y = y as usize / TILE_SIZE_PIXELS;
+
+            let tile_attr = if (fine_scroll as u32 + (x & 0b111)) < 8 {
                 self.prev_attribute_byte
             } else {
                 self.curr_attribute_byte
@@ -924,12 +910,14 @@ impl PPU {
     }
 
     fn inc_hori(&mut self) -> () {
-        if (self.reg.v & 0x1f) == 31 {  // if coarse X == 31
-            self.reg.v &= !0x001f;      // coarse X = 0
-            self.reg.v ^= 0x0400;       // switch horizontal nametable
+        let mut v = self.reg.v;
+        if (v & 0x001f) == 31 {// if coarse X == 31
+            v &= !0x001f;      // coarse X = 0
+            v ^= 0x0400;       // switch horizontal nametable
         } else {
-            self.reg.v += 1             // increment coarse X
+            v += 1             // increment coarse X
         }
+        self.reg.v = v;
     }
 
     fn inc_vert(&mut self) -> () {
