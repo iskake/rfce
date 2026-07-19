@@ -1,5 +1,6 @@
 /target
 .vscode
+.DS_Store
 
 # Assembly and binary files
 *.s
