@@ -72,7 +72,18 @@ impl Controller {
                       | (joy1_state.down as u8) << 5
                       | (joy1_state.left as u8) << 6
                       | (joy1_state.right as u8) << 7;
+
+        if self.joy1_tmp & 0b11000000 == 0b11000000 {
+            // Forbid left + right input
+            self.joy1_tmp &= 0b111111;
+        }
+        if self.joy1_tmp & 0b00110000 == 0b00110000 {
+            // Forbid up + down input
+            self.joy1_tmp &= 0b11001111;
+        }
+
         debug!("wrote {:02x} to joy1_tmp", self.joy1_tmp);
+
         self.joy2_tmp = (joy2_state.a as u8)
                       | (joy2_state.b as u8) << 1
                       | (joy2_state.select as u8) << 2
@@ -81,6 +92,14 @@ impl Controller {
                       | (joy2_state.down as u8) << 5
                       | (joy2_state.left as u8) << 6
                       | (joy2_state.right as u8) << 7;
+        if self.joy2_tmp & 0b11000000 == 0b11000000 {
+            // Forbid left + right input
+            self.joy2_tmp &= 0b111111;
+        }
+        if self.joy2_tmp & 0b00110000 == 0b00110000 {
+            // Forbid up + down input
+            self.joy2_tmp &= 0b11001111;
+        }
         debug!("wrote {:02x} to joy2_tmp", self.joy2_tmp);
     }
 
