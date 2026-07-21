@@ -76,6 +76,19 @@ impl NESFile {
     pub fn mapper_type(&self) -> MapperType {
         match self.mapper_number() {
             0 => MapperType::NROM,
+            1 | 105 | 155 => MapperType::MMC1,
+            9 => MapperType::MMC2,
+            4 => {
+                match self.submapper_number() {
+                    0 => MapperType::MMC3,
+                    1 => MapperType::MMC6,
+                    i => MapperType::UNKNOWN(i as u16),
+                }
+            },
+            118 | 119 => MapperType::MMC3,
+            10 => MapperType::MMC4,
+            5 => MapperType::MMC5,
+            // 4 => MapperType::MMC6,
             i => MapperType::UNKNOWN(i),
         }
     }

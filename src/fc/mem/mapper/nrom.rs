@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::fc::{mem::{Memory, cart::NESFile, mapper::{Mapper, MapperType}}, ppu};
+use crate::fc::{mem::{Memory, cart::NESFile, mapper::{Mapper, MapperType, RealMapper}}, ppu};
 
 const NROM256_PRG_ROM_SIZE: usize = 32_768;
 
@@ -16,7 +16,18 @@ pub struct NROMMapper {
 }
 
 impl NROMMapper {
-    pub fn from_nesfile(nesfile: &NESFile) -> NROMMapper {
+    fn nametable_addr_fix(&self, addr: u16) -> u16 {
+        let a = addr - 0x2000;
+        if self.nametable_v_mirror {
+            a & 0x7ff
+        } else {
+            (a & 0x800 >> 1) | a & 0x3ff
+        }
+    }
+}
+
+impl RealMapper for NROMMapper {
+    fn from_nesfile(nesfile: &NESFile) -> NROMMapper {
         assert!(nesfile.mapper_type() == MapperType::NROM);
         let prg_rom_size = nesfile.prg_rom_size();
         let chr_rom_size = nesfile.chr_rom_size();
@@ -32,7 +43,7 @@ impl NROMMapper {
         info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
         info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
         info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
-        info!("  Nametable mirroring: {} ({} arrangement)\n",
+        info!("  Nametable mirroring: {} ({} arrangement)",
             if nametable_v_mirror { "vertical" } else { "horizontal" },
             if nametable_v_mirror { "horizontal" } else { "vertical" }
         );
@@ -42,15 +53,6 @@ impl NROMMapper {
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
 
         NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
-    }
-
-    fn nametable_addr_fix(&self, addr: u16) -> u16 {
-        let a = addr - 0x2000;
-        if self.nametable_v_mirror {
-            a & 0x7ff
-        } else {
-            (a & 0x800 >> 1) | a & 0x3ff
-        }
     }
 }
 
