@@ -195,9 +195,9 @@ impl Inst {
         match self {
             Inst::NOP(_a) => (),
             Inst::ADC(am) => adc(cpu, am, false),
-            Inst::AND(am) => a_op_fn(cpu, am, |a, m| a & m),
-            Inst::EOR(am) => a_op_fn(cpu, am, |a, m| a ^ m),
-            Inst::ORA(am) => a_op_fn(cpu, am, |a, m| a | m),
+            Inst::AND(am) => and(cpu, am),
+            Inst::EOR(am) => eor(cpu, am),
+            Inst::ORA(am) => ora(cpu, am),
             Inst::ASL(am) => rot(cpu, am, false, true),
             Inst::BIT(am) => bit(cpu, am),
             Inst::BCC(_a) => branch(cpu, !cpu.reg.p.c),
@@ -260,11 +260,19 @@ fn pla(cpu: &mut CPU) {
     cpu.reg.p.n = cpu.reg.a.test_bit(7)
 }
 
-fn a_op_fn(cpu: &mut CPU, am: AddrMode, f: fn(u8, u8) -> u8) {
-    cpu.reg.a = f(cpu.reg.a, cpu.operand_read_inc(am));
-    cpu.reg.p.z = cpu.reg.a == 0;
-    cpu.reg.p.n = cpu.reg.a.test_bit(7)
+macro_rules! a_op_fn {
+    ($fn_name: ident, $op: tt) => {
+        fn $fn_name(cpu: &mut CPU, am: AddrMode) {
+            cpu.reg.a = cpu.reg.a $op cpu.operand_read_inc(am);
+            cpu.reg.p.z = cpu.reg.a == 0;
+            cpu.reg.p.n = cpu.reg.a.test_bit(7)
+        }
+    };
 }
+
+a_op_fn!(and, &);
+a_op_fn!(ora, |);
+a_op_fn!(eor, ^);
 
 fn set_a(cpu: &mut CPU, f: u8) {
     cpu.reg.a = f;
