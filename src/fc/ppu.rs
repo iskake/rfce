@@ -1,7 +1,7 @@
 mod tile;
 mod sprite;
 
-use log::{debug, info};
+use log::debug;
 use rgb::*;
 use tile::Tile;
 use sprite::Sprite;
@@ -26,8 +26,8 @@ pub const PICTURE_HEIGHT: usize = 240;
 
 const TILE_SIZE_PIXELS: usize = 8;
 const SPRITE_WIDTH: usize = TILE_SIZE_PIXELS;
-const SPRITE_HEIGHT_SMALL: usize = 8;
-const SPRITE_HEIGHT_LARGE: usize = 16;
+const SPRITE_HEIGHT_SMALL: u8 = 8;
+const SPRITE_HEIGHT_LARGE: u8 = 16;
 
 pub const SCANLINE_DURATION: u32 = 341;
 pub const FRAME_SCANLINES:   u32 = 262;
@@ -73,6 +73,7 @@ pub struct PPU {
 
 struct OAMSystem {
     sprites: [Sprite; 8],
+    tmp_idxes: [u8; 8],
     oam_secondary: [u8; OAM_SIZE / 2],
     oam_tmp: u8,
     n: usize,
@@ -81,7 +82,9 @@ struct OAMSystem {
     copy_state: u8,
     is_full: bool,
     curr_in_bounds: bool,
-    found_sprite0: bool,
+    curr_sprite: u8,
+    sprite_0_hit_curr_scanline: bool,
+    sprite_0_hit_next_scanline: bool,
 }
 
 impl OAMSystem {
@@ -94,6 +97,7 @@ impl OAMSystem {
                 attrs: 0,
                 x: 0
             }; 8],
+            tmp_idxes: [0xff; 8],
             oam_secondary: [0; OAM_SIZE / 2],
             oam_ptr: 0,
             oam_tmp: 0,
@@ -102,7 +106,9 @@ impl OAMSystem {
             copy_state: 0,
             is_full: false,
             curr_in_bounds: false,
-            found_sprite0: false,
+            curr_sprite: 0,
+            sprite_0_hit_curr_scanline: false,
+            sprite_0_hit_next_scanline: false,
         }
     }
 }
@@ -445,10 +451,13 @@ impl PPU {
                 } else {
                     // TODO: see above (and nesdev PPU sprite evaluation)
                     o.oam_secondary[self.cycle as usize / 2] = 0xff;
+                    o.sprites[(self.cycle as usize - 1) / 8].idx = 0xff;
                 }
 
                 o.copy_state = 0;
                 o.oam_ptr = 0;
+                o.n = 0;
+                o.m = 0;
             },
             65..=256 => {       // Sprite evaluation
                 if self.cycle & 1 == 1 {
@@ -461,30 +470,26 @@ impl PPU {
 
                         if o.m == 0 {
                             let y_coord = o.oam_tmp as u32;
-                            let sprite_height = if self.reg.control.sprites_large {
-                                SPRITE_HEIGHT_LARGE
-                            } else {
-                                SPRITE_HEIGHT_SMALL
-                            } as u32;
+                            let sprite_height = self.reg.control.sprites_large as u32;
                             o.curr_in_bounds = self.scanline >= y_coord && self.scanline < y_coord + sprite_height;
                         }
 
                         if o.curr_in_bounds {
+                            if self.cycle == 66 {
+                                // Cycle 66 means sprite 0's y coord was just stored into o.oam_tmp
+                                o.sprite_0_hit_next_scanline = true;
+                                debug!("Sprite 0 found at line: {} cycle {}", self.scanline, self.cycle);
+                            }
+
                             o.curr_in_bounds = true;
                             o.oam_ptr += 1;
                             o.m += 1;
 
                             if o.m == 4 {
-                                if o.n == 0 {
-                                    // Must be first found sprite
-                                    o.found_sprite0 = true;
-                                }
-
-                                o.sprites[(o.oam_ptr - 3) / 4].idx = o.n as u8;
-
                                 o.m = 0;
                                 o.n += 1;
                                 o.curr_in_bounds = false;
+                                o.curr_sprite += 1;
                             }
                         } else {
                             o.m = 0;
@@ -499,10 +504,12 @@ impl PPU {
                         if o.n == 64 {
                             // n overflowed
                             o.n = 0;
+                            o.is_full = true; // ?????
                         } else if o.oam_ptr <= 32 {
                             // Less than 8 sprites have been found
                         } else if o.oam_ptr == 33 {
                             // Exactly 8 sprites have been found
+                            o.is_full = true; // ?
                         }
                     } else {
                         // ...
@@ -511,41 +518,33 @@ impl PPU {
             },
             257..=320 => {      // Sprite fetches
                 if self.cycle == 257 {
-                    // Use this ptr to index into oam_secondary
-                    o.oam_ptr = 0;
+                    for i in 0..8 {
+                        o.sprites[i].y     = o.oam_secondary[i * 4];
+                        o.sprites[i].tile  = o.oam_secondary[i * 4 + 1];
+                        o.sprites[i].attrs = o.oam_secondary[i * 4 + 2];
+                        o.sprites[i].x     = o.oam_secondary[i * 4 + 3];
+                    }
                 }
-
-                // TODO: check when exactly this happens
-                if o.oam_ptr > 7 {
-                    return;
-                }
-
-                let idx = self.cycle as usize & 0b111;
-                match idx {
-                    // Read Y-coord, tile num, attrs, and x coord of selected sprite in oam
-                    1 => o.sprites[o.oam_ptr].y     = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
-                    2 => o.sprites[o.oam_ptr].tile  = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
-                    3 => o.sprites[o.oam_ptr].attrs = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
-                    4 => o.sprites[o.oam_ptr].x     = o.oam_secondary[o.oam_ptr * 4 + idx - 1],
-                    // Read X-coord of the selected sprite in OAM 4 times
-                    // (...or don't?)
-                    5 => o.oam_ptr += 1,
-                    _ => {}
-                }
-
-                // if self.cycle == 320 {
-                    // println!("Sprites: {:?}", o.sprites);
-                // }
             },
             321..=340 | 0 => {  // "background render pipeline initialization"
                 // "Read the first byte in secondary OAM (while the PPU fetches the first two background tiles for the next scanline)"
                 o.oam_tmp = o.oam_secondary[0];
+                o.tmp_idxes = [0xff; 8];
                 o.n = 0;
                 o.m = 0;
                 o.oam_ptr = 0;
                 o.is_full = false;
                 o.curr_in_bounds = false;
-                o.found_sprite0 = false;
+                o.curr_sprite = 0;
+
+                if self.cycle == 0 {
+                    if o.sprite_0_hit_next_scanline {
+                        o.sprite_0_hit_next_scanline = false;
+                        o.sprite_0_hit_curr_scanline = true;
+                    } else if !o.sprite_0_hit_next_scanline && o.sprite_0_hit_curr_scanline {
+                        o.sprite_0_hit_curr_scanline = false;
+                    }
+                }
             },
             _ => unreachable!(),
         }
@@ -723,13 +722,9 @@ impl PPU {
                 // info!("Sprite has non 255 value?? {spr:?} on scanline: {}", self.scanline);
             }
 
-            let spr_height = if self.reg.control.sprites_large {
-                SPRITE_HEIGHT_LARGE
-            } else {
-                SPRITE_HEIGHT_SMALL
-            } as u32;
+            let spr_height = self.reg.control.sprites_large as u32;
 
-            if y >= spr.y.into()
+            if y >= spr.y as u32
                 && y-1 <= spr.y as u32 + spr_height
                 && x >= spr.x as u32
                 && x < spr.x as u32 + SPRITE_WIDTH as u32
@@ -772,11 +767,15 @@ impl PPU {
                 spr_color = (b1 << 1) | b0;
                 spr_in_front = spr.in_front();
 
-                // TODO: one cycle earlier than mesen
-                if spr.idx == 0 && spr_color != 0 && !self.reg.status.sprite_0_hit && x != 255 {
+                if self.oam_sys.sprite_0_hit_curr_scanline
+                    && i == 0
+                    && spr_color != 0
+                    && bg_color != 0
+                    && !self.reg.status.sprite_0_hit
+                    && x != 255
+                {
                     // Hit sprite 0
                     self.reg.status.sprite_0_hit = true;
-                    debug!("Sprite 0 hit at (line: {}, cyc: {})", self.scanline, self.cycle);
                 }
 
                 found_sprite = Some(spr);
@@ -999,7 +998,7 @@ struct PPUControl {
     vram_addr_inc: u8,
     spr_pattern_addr: u16,
     bg_pattern_addr: u16,
-    sprites_large: bool,
+    sprites_large: u8,
     // ppu_master_slave: bool,
     nmi_enable: bool,
 }
@@ -1054,7 +1053,7 @@ impl From<u8> for PPUControl {
             vram_addr_inc:    if val.test_bit(2) {32} else {1},
             spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
             bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
-            sprites_large:    val.test_bit(5),
+            sprites_large:    if val.test_bit(5) { SPRITE_HEIGHT_LARGE } else { SPRITE_HEIGHT_SMALL },
             // ppu_master_slave: val.test_bit(6),
             nmi_enable:       val.test_bit(7),
         }
@@ -1067,7 +1066,7 @@ impl Into<u8> for PPUControl {
         | ((self.vram_addr_inc >> 5) as u8)     << 2
         | ((self.spr_pattern_addr >> 12) as u8) << 3
         | ((self.bg_pattern_addr >> 12) as u8)  << 4
-        | (self.sprites_large as u8)            << 5
+        | ((self.sprites_large >> 4) as u8)     << 5
         | /* (self.ppu_master_slave as u8) */0  << 6
         | (self.nmi_enable as u8)               << 7
    }
