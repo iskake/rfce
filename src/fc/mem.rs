@@ -1,6 +1,7 @@
 use cart::NESFile;
 use log::warn;
-use mapper::{Mapper, NROMMapper};
+use mapper::Mapper;
+use mapper::nrom::NROMMapper;
 
 use crate::fc::input::Controller;
 
