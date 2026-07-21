@@ -17,6 +17,7 @@ pub trait Mapper : Memory {
     fn write_chr(&mut self, addr: u16, val: u8) -> ();
     fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8;
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> ();
+    fn read_no_sideeffect(&self, addr: u16) -> u8;
 }
 
 pub struct NROMMapper {
@@ -70,24 +71,8 @@ impl NROMMapper {
 }
 
 impl Memory for NROMMapper {
-    fn read(&self, addr: u16) -> u8 {
-        match addr {
-            0x6000..=0x7fff => {
-                // TODO: handle mirroring/no ram
-                self.prg_ram[(addr - 0x6000) as usize]
-            },
-            0x8000..=0xbfff => {
-                self.prg_rom[(addr - 0x8000) as usize]
-            },
-            0xc000..=0xffff => {
-                if self.prg_rom.len() == NROM256_PRG_ROM_SIZE {
-                    self.prg_rom[(addr - 0x8000) as usize]
-                } else {
-                    self.prg_rom[(addr - 0xc000) as usize]
-                }
-            }
-            _ => unreachable!(),
-        }
+    fn read(&mut self, addr: u16) -> u8 {
+        self.read_no_sideeffect(addr)
     }
 
     fn write(&mut self, addr: u16, val: u8) -> () {
@@ -119,5 +104,25 @@ impl Mapper for NROMMapper {
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> () {
         let addr = self.nametable_addr_fix(addr);
         vram[addr as usize] = val;
+    }
+
+    fn read_no_sideeffect(&self, addr: u16) -> u8 {
+        match addr {
+            0x6000..=0x7fff => {
+                // TODO: handle mirroring/no ram
+                self.prg_ram[(addr - 0x6000) as usize]
+            },
+            0x8000..=0xbfff => {
+                self.prg_rom[(addr - 0x8000) as usize]
+            },
+            0xc000..=0xffff => {
+                if self.prg_rom.len() == NROM256_PRG_ROM_SIZE {
+                    self.prg_rom[(addr - 0x8000) as usize]
+                } else {
+                    self.prg_rom[(addr - 0xc000) as usize]
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }

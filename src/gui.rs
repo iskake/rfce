@@ -10,7 +10,7 @@ use sdl3::{
     video::Window,
 };
 
-use crate::fc::{FC, ppu};
+use crate::fc::{FC, input::StandardControllerState, ppu};
 
 pub struct GUI {
     canvas: Canvas<Window>,
@@ -27,6 +27,9 @@ struct GUIState {
     frame_advancing: bool,
     // debugging_view: bool,
     curr_rom_path: PathBuf,
+    curr_joypad_is_joy2: bool,
+    joypad1: StandardControllerState,
+    joypad2: StandardControllerState,
     ui_show_error: bool,
     ui_last_error: Option<String>,
     ui_show_error_timer: std::time::Instant,
@@ -70,6 +73,9 @@ impl GUI {
             frame_advancing: false,
             // debugging_view: false,
             curr_rom_path: PathBuf::new(),
+            curr_joypad_is_joy2: false,
+            joypad1: StandardControllerState::default(),
+            joypad2: StandardControllerState::default(),
             ui_show_error: false,
             ui_last_error: None,
             ui_show_error_timer: std::time::Instant::now(),
@@ -103,6 +109,9 @@ impl GUI {
                 if quit_event {
                     return Ok(());
                 }
+            }
+            if let Some(f) = &mut self.fc {
+                f.set_controller_values(self.state.joypad1, self.state.joypad2);
             }
 
             self.run_frame();
@@ -173,11 +182,32 @@ impl GUI {
     fn handle_event(&mut self, event: Event) -> bool {
         match event {
             Event::Quit { .. } => return true,
+            Event::KeyDown { keycode: Some(Keycode::C), .. } => { self.state.curr_joypad_is_joy2 = !self.state.curr_joypad_is_joy2 },
+            // Joypad press
+            Event::KeyDown { keycode: Some(Keycode::X),         .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.a      = true; },
+            Event::KeyDown { keycode: Some(Keycode::Z),         .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.b      = true; },
+            Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.select = true; },
+            Event::KeyDown { keycode: Some(Keycode::Return),    .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.start  = true; },
+            Event::KeyDown { keycode: Some(Keycode::Up),        .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.up     = true; },
+            Event::KeyDown { keycode: Some(Keycode::Down),      .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.down   = true; },
+            Event::KeyDown { keycode: Some(Keycode::Left),      .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.left   = true; },
+            Event::KeyDown { keycode: Some(Keycode::Right),     .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.right  = true; },
+            // Joypad release
+            Event::KeyUp   { keycode: Some(Keycode::X),         .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.a      = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Z),         .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.b      = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Backspace), .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.select = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Return),    .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.start  = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Up),        .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.up     = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Down),      .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.down   = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Left),      .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.left   = false; },
+            Event::KeyUp   { keycode: Some(Keycode::Right),     .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.right  = false; },
+            // Scale
             Event::KeyDown { keycode: Some(Keycode::_1), .. } => self.set_scale(1),
             Event::KeyDown { keycode: Some(Keycode::_2), .. } => self.set_scale(2),
             Event::KeyDown { keycode: Some(Keycode::_3), .. } => self.set_scale(3),
             Event::KeyDown { keycode: Some(Keycode::_4), .. } => self.set_scale(4),
             Event::KeyDown { keycode: Some(Keycode::_5), .. } => self.set_scale(5),
+            // Pausing
             Event::KeyDown {
                 keycode: Some(Keycode::Escape | Keycode::P),
                 ..
@@ -191,22 +221,20 @@ impl GUI {
                 ..
             } => self.disable_fast_forward(),
             Event::KeyDown {
+                keycode: Some(Keycode::RightBracket),
+                ..
+            } => {
+                self.state.emulator_paused = false;
+                self.state.frame_advancing = true;
+            }
+            // Resets
+            Event::KeyDown {
                 keycode: Some(Keycode::R),
                 ..
             } => {
                 if let Some(f) = &mut self.fc {
                     info!("Soft reset");
                     f.reset();
-                }
-            }
-            Event::KeyDown {
-                keycode: Some(Keycode::RightBracket),
-                ..
-            } => {
-                if let Some(f) = &mut self.fc {
-                    info!("Frame advance");
-                    self.state.emulator_paused = false;
-                    self.state.frame_advancing = true;
                 }
             }
             Event::KeyDown {
@@ -220,6 +248,19 @@ impl GUI {
                     }
                 }
             }
+            // Load ROM
+            Event::KeyDown {
+                keycode: Some(Keycode::O),
+                ..
+            } => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter(".NES ROM file", &["nes"])
+                    .pick_file()
+                {
+                    self.load(&path);
+                }
+            }
+            // Screenshot
             Event::KeyDown {
                 keycode: Some(Keycode::PrintScreen),
                 ..
@@ -241,17 +282,6 @@ impl GUI {
                     }
                 } else {
                     warn!("Failed to save screenshot: no rom loaded")
-                }
-            }
-            Event::KeyDown {
-                keycode: Some(Keycode::O),
-                ..
-            } => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter(".NES ROM file", &["nes"])
-                    .pick_file()
-                {
-                    self.load(&path);
                 }
             }
             _ => {}

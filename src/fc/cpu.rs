@@ -211,7 +211,7 @@ impl CPU {
     fn mem_read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr % 8) + 0x2000),
-            _ => self.mem.read(addr),
+            _ => self.mem.read_no_sideeffect(addr),
         }
     }
 

@@ -4,6 +4,7 @@ use std::path::Path;
 use mem::MemMap;
 
 use crate::fc::cpu::*;
+use crate::fc::input::StandardControllerState;
 use crate::fc::mem::cart::*;
 use crate::fc::ppu::*;
 
@@ -11,6 +12,7 @@ pub mod cpu;
 pub mod ppu;
 pub mod mem;
 pub mod dbg;
+pub mod input;
 
 pub enum ConsoleType {
     Famicom,
@@ -95,5 +97,9 @@ impl FC {
 
     pub fn get_nametables_dbg(&mut self) -> &[u8] {
         self.cpu.ppu.generate_nametables_image_temp(&self.cpu.mem)
+    }
+
+    pub fn set_controller_values(&mut self, joy1: StandardControllerState, joy2: StandardControllerState) {
+        self.cpu.mem.input.update_from_controller_state(joy1, joy2);
     }
 }
