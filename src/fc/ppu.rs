@@ -237,6 +237,7 @@ impl PPU {
         match addr {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
+            0x3000..=0x3eff => mem.mapper.nametable_read(addr - 0x1000, self.vram), // Unused, "usually" mirror of 0x2000..=0x2eff
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 0x20) as usize],
             _ => unreachable!("addr: {addr:04x}"),
         }
@@ -246,6 +247,7 @@ impl PPU {
         match addr {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
             0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, &mut self.vram),
+            0x2000..=0x2fff => mem.mapper.nametable_write(addr - 0x1000, val, &mut self.vram), // Unused, "usually" mirror of 0x2000.=0x2eff
             0x3f00..=0x3fff => self.write_pal(addr, val),
             _ => unreachable!("addr: {addr:04x}"),
         }
@@ -576,8 +578,10 @@ impl PPU {
                 }
 
                 if self.cycle >= 280 && self.cycle <= 304 {
-                    // "Copy vertical scrolling value from t"
-                    self.reg.v = (self.reg.v & !0x7be0) | (self.reg.t & 0x7be0);
+                    // "Copy vertical scrolling value from t" (if rendering is enabled)
+                    if self.rendering_enabled() {
+                        self.reg.v = (self.reg.v & !0x7be0) | (self.reg.t & 0x7be0);
+                    }
                 }
             },
             _ => unreachable!(),
@@ -590,6 +594,7 @@ impl PPU {
             0 => {},         // idle cycle
             1..=256 => {     // vram fetch/update
                 self.rendering_fetch_data(mem);
+                // TODO: rendering enable check after this?
 
                 let x = (self.cycle - 1) as usize;
                 let y = self.scanline as usize;
@@ -602,17 +607,16 @@ impl PPU {
                 self.frame_buf.as_rgb_mut()[idx] = px;
             },
             257..=320 => {   // fetch tile data for sprites on the next scanline
-                if self.cycle == 257 {
-                    if self.rendering_enabled() {
+                if self.rendering_enabled() {
+                    if self.cycle == 257 {
                         // "Copy horizontal scrolling value from t"
                         self.reg.v = (self.reg.v & !0x041f) | (self.reg.t & 0x041f);
                     }
-                }
 
-                if self.scanline >= 280 && self.scanline < 304 {
-                    // ...
-                    self.reg.v = (self.reg.v & 0x041f) | (self.reg.t & !0x041f);
-
+                    if self.scanline >= 280 && self.scanline < 304 {
+                        // ...
+                        self.reg.v = (self.reg.v & 0x041f) | (self.reg.t & !0x041f);
+                    }
                 }
 
                 // TODO: garbage reads?
@@ -622,9 +626,8 @@ impl PPU {
                 // }
             },
             321..=336 => {  // fetch tile data for first two tiles for the next scanline
-                self.rendering_fetch_data(mem);
-
                 if self.rendering_enabled() {
+                    self.rendering_fetch_data(mem);
                     // Load the data into the registers
                     if self.cycle == 328 || self.cycle == 336 {
                         self.shl_shift_registers(8);
@@ -738,28 +741,51 @@ impl PPU {
                 // Hit sprite
                 let rel_y = (y-1 - spr.y as u32) as u16;
                 let rel_x = (x - spr.x as u32) as usize;
-                let pattern_table_start = self.reg.control.spr_pattern_addr;
 
-                let tile_idx = if spr_height > SPRITE_HEIGHT_SMALL as u32 {
-                    if y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32 {
+                let large_sprites = spr_height > SPRITE_HEIGHT_SMALL as u32;
+                let is_second_sprite = y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32;
+
+                let pattern_table_start = if large_sprites {
+                    if spr.tile & 1 == 0 {
+                        0x0000
+                    } else {
+                        0x1000
+                    }
+                } else {
+                    self.reg.control.spr_pattern_addr
+                };
+
+                let tile_idx = if large_sprites {
+                    if !is_second_sprite {
                         // todo!("8x16 sprite tile 1")
-                        spr.tile
+                        spr.tile & 0xfe
                     } else {
                         // todo!("8x16 sprite tile 2")
-                        spr.tile + 0x0
+                        (spr.tile & 0xfe) | 1
                     }
                 } else {
                     spr.tile
                 };
 
+
                 let rel_y = if spr.flipped_vertical() {
-                    7 - rel_y
+                    if large_sprites && !is_second_sprite {
+                        7 - rel_y + 16
+                    } else {
+                        7 - rel_y
+                    }
                 } else {
                     rel_y
                 };
 
-                let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y);
-                let addr_hi = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y + 8);
+                let second_sprite_delta = if is_second_sprite {
+                    8
+                } else {
+                    0
+                };
+
+                let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta);
+                let addr_hi = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta + 8);
                 let tile_line_lo = self.read_addr(addr_lo, mem);
                 let tile_line_hi = self.read_addr(addr_hi, mem);
 
@@ -807,6 +833,7 @@ impl PPU {
         let pal_idx = if use_sprite && let Some(spr) = found_sprite {
             spr.palette()
         } else {
+            // TODO: should it actually be v? Currently some bugs if so...
             let t = self.reg.t as usize;
             let scroll_x = x_scroll_fine as usize | (t & 0b11111) << 3;
             let tile_x = (x as usize + scroll_x) / TILE_SIZE_PIXELS;
