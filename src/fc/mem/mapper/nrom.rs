@@ -17,11 +17,11 @@ pub struct NROMMapper {
 
 impl NROMMapper {
     fn nametable_addr_fix(&self, addr: u16) -> u16 {
-        let a = addr - 0x2000;
+        let a = addr & 0xfff;
         if self.nametable_v_mirror {
             a & 0x7ff
         } else {
-            (a & 0x800 >> 1) | a & 0x3ff
+            ((a & 0x800) >> 1) | (a & 0x3ff)
         }
     }
 }
