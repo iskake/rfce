@@ -186,7 +186,7 @@ impl NESFile {
     pub fn chr_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
             let val = self.header.chr_rom_size_lsb as usize;
-            val
+            val * 0x2000
         } else {
             if (self.header.flags9 & 0xf0) == 0xf0 {
                 // Exponent-multiplier notation
