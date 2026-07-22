@@ -265,6 +265,10 @@ impl Memory for MMC1Mapper {
 
 impl Mapper for MMC1Mapper {
     fn read_chr(&self, addr: u16) -> u8 {
+        if self.chr_rxm.len() == 0 {
+            return 0xff;
+        }
+
         let real_banks = self.chr_rxm.len() / CHR_BANK_SIZE;
 
         if let Switch8K = self.chr_bank_mode {

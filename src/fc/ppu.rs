@@ -252,10 +252,10 @@ impl PPU {
 
     fn write_pal(&mut self, addr: u16, val: u8) {
         if addr & 0b11 == 0 {
-            self.pal[((addr - 0x3f00) % 0x20) as usize] = val;
-            self.pal[((addr - 0x3f10) % 0x20) as usize] = val;
+            self.pal[((addr - 0x3f00) & 0x1f) as usize] = val;
+            self.pal[((addr - 0x3f10) & 0x1f) as usize] = val;
         } else {
-            self.pal[((addr - 0x3f00) % 0x20) as usize] = val;
+            self.pal[((addr - 0x3f00) & 0x1f) as usize] = val;
         }
     }
 
