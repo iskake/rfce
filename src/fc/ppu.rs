@@ -247,7 +247,7 @@ impl PPU {
         match addr {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
             0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, &mut self.vram),
-            0x2000..=0x2fff => mem.mapper.nametable_write(addr - 0x1000, val, &mut self.vram), // Unused, "usually" mirror of 0x2000.=0x2eff
+            0x3000..=0x3eff => mem.mapper.nametable_write(addr - 0x1000, val, &mut self.vram), // Unused, "usually" mirror of 0x2000.=0x2eff
             0x3f00..=0x3fff => self.write_pal(addr, val),
             _ => unreachable!("addr: {addr:04x}"),
         }
