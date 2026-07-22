@@ -603,9 +603,9 @@ impl CPU {
         }
 
         // Interrupt handling
-        if self.ppu.should_do_nmi() && !self.reg.nmi {
+        if self.ppu.nmi_enable() && self.ppu.is_vblank() && !self.reg.nmi {
             self.handle_nmi();
-        } else if self.reg.nmi && !self.ppu.nmi_enable() {
+        } else if self.reg.nmi && !self.ppu.is_vblank() {
             self.reg.nmi = false;
         }
     }

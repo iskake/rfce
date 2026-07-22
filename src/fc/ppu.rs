@@ -185,21 +185,18 @@ impl PPU {
         self.scanline
     }
 
-    pub(crate) fn _is_vblank(&self) -> bool {
+    pub(crate) fn is_vblank(&self) -> bool {
         self.reg.status.vblank
+    }
+
+    pub(crate) fn nmi_enable(&self) -> bool {
+        self.reg.control.nmi_enable
     }
 
     pub(crate) fn just_finished_rendering(&self) -> bool {
         self.scanline == 240
     }
 
-    pub(crate) fn should_do_nmi(&self) -> bool {
-        self.reg.status.vblank && self.reg.control.nmi_enable
-    }
-
-    pub(crate) fn nmi_enable(&self) -> bool {
-        self.reg.control.nmi_enable
-    }
 
     pub(crate) fn oamdma(&self) -> u8 {
         self.reg.oam_dma
@@ -376,7 +373,7 @@ impl PPU {
             self.reg.t = self.reg.t & 0xffe0 | x_coarse;
         }
 
-        // info!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {}) at (line: {}, cyc: {})", self.reg.write_toggle, self.scanline, self.cycle);
+        debug!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {}) at (line: {}, cyc: {})", self.reg.write_toggle, self.scanline, self.cycle);
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
