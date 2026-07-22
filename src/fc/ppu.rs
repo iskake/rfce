@@ -148,7 +148,8 @@ impl PPU {
             self.reg.v, self.reg.t, self.reg.scroll_x
         );
         let ppuctrl: u8 = self.reg.control.into();
-        println!("  ppuctrl: {:02x}", ppuctrl);
+        let ppustatus: u8 = self.reg.status.into();
+        println!("  ppuctrl: {:02x}, ppustatus: {:02x}", ppuctrl, ppustatus);
         println!("  cycles: {}, scanlines: {}, frame: {}", self.cycle, self.scanline, self.frame);
     }
 
@@ -173,7 +174,7 @@ impl PPU {
         // ???^^^
         self.cycle = 0;
         self.scanline = 0;
-        self.frame = 0;
+        self.frame = 1;
     }
 
     pub(crate) fn cycles(&self) -> u32 {
@@ -631,8 +632,12 @@ impl PPU {
                 }
             },
             337..=340 => {
-                if self.cycle == 339 && self.scanline % 2 == 1 {
-                    self.cycle = 340;
+                if self.rendering_enabled() {
+                    // TODO: two ppu fetches
+
+                    if self.cycle == 339 && self.scanline == 261 && self.frame % 2 == 1 {
+                        self.cycle = 340;
+                    }
                 }
             }, // fetch two bytes
             _ => unreachable!(),
@@ -705,12 +710,12 @@ impl PPU {
 
     #[inline]
     fn get_next_pixel(&mut self, mem: &MemMap) -> RGB<u8> {
-        let fine_scroll = self.reg.scroll_x;
+        let x_scroll_fine = self.reg.scroll_x;
         let y = self.scanline;
         let x = self.cycle - 1;
 
-        let bg_color = ((((self.shift_reg_lo as u16) << fine_scroll) & 0x8000) >> 15)
-                          | ((((self.shift_reg_hi as u16) << fine_scroll) & 0x8000) >> 14);
+        let bg_color = ((((self.shift_reg_lo as u16) << x_scroll_fine) & 0x8000) >> 15)
+                          | ((((self.shift_reg_hi as u16) << x_scroll_fine) & 0x8000) >> 14);
 
         let mut spr_color = 0;
         let mut spr_in_front = false;
@@ -737,9 +742,11 @@ impl PPU {
 
                 let tile_idx = if spr_height > SPRITE_HEIGHT_SMALL as u32 {
                     if y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32 {
-                        todo!("8x16 sprite tile 1")
+                        // todo!("8x16 sprite tile 1")
+                        spr.tile
                     } else {
-                        todo!("8x16 sprite tile 2")
+                        // todo!("8x16 sprite tile 2")
+                        spr.tile + 0x0
                     }
                 } else {
                     spr.tile
@@ -800,13 +807,15 @@ impl PPU {
         let pal_idx = if use_sprite && let Some(spr) = found_sprite {
             spr.palette()
         } else {
-            let scroll_x = fine_scroll as usize | (self.reg.t as usize & 0b11111) << 3;
+            let t = self.reg.t as usize;
+            let scroll_x = x_scroll_fine as usize | (t & 0b11111) << 3;
+            let tile_x = (x as usize + scroll_x) / TILE_SIZE_PIXELS;
 
-            let tile_x = (x as usize + scroll_x as usize) / TILE_SIZE_PIXELS;
             // TODO: vertical scrolling
-            let tile_y = y as usize / TILE_SIZE_PIXELS;
+            let scroll_y = ((t & 0b1111100000) >> 2) | ((t & 0x7000) >> 12);
+            let tile_y = (y as usize + scroll_y) / TILE_SIZE_PIXELS;
 
-            let tile_attr = if (fine_scroll as u32 + (x & 0b111)) < 8 {
+            let tile_attr = if (x_scroll_fine as u32 + (x & 0b111)) < 8 {
                 self.prev_attribute_byte
             } else {
                 self.curr_attribute_byte
