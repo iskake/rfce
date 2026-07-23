@@ -248,14 +248,14 @@ impl Debugger {
     fn print_mem_region<T: Fn(u16) -> u8>(&self, from: u32, to: u32, f: T) -> () {
         for i in from..to {
             if i != from as u32 {
-                if i % 0x10 == 0 {
+                if i & 0xf == 0 {
                     print!("\n");
                 } else {
                     print!(" ");
                 }
             }
 
-            if i % 0x10 == 0 {
+            if i & 0xf == 0 {
                 let addr = i as u16;
                 print!("${addr:04x}:  ");
             }

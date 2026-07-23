@@ -663,7 +663,7 @@ impl PPU {
             return;
         }
 
-        let c = (self.cycle) % 8;
+        let c = (self.cycle) & 0x7;
         match c {
             1 => {  // nametable byte
                 // "The shifters are reloaded during ticks 9, 17, 25, ..., 257."

@@ -129,7 +129,7 @@ impl Memory for MemMap {
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize],
-            0x0800..=0x1fff => self.ram[(addr % 0x800) as usize],
+            0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize],
             0x4000..=0x4015 => 0xff, // TODO: apu registers
             0x4016          => self.input.read_joy1(), // Joystick 1 data
             0x4017          => self.input.read_joy2(), // Joystick 2 data
@@ -142,7 +142,7 @@ impl Memory for MemMap {
     fn write(&mut self, addr: u16, val: u8) -> () {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize] = val,
-            0x0800..=0x1fff => self.ram[(addr % 0x800) as usize] = val,
+            0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize] = val,
             0x4000..=0x4015 => (), // TODO: apu registers
             0x4016          => self.input.write(val), // Joystick strobe
             0x4017          => (), // TODO: apu frame counter control
@@ -212,7 +212,7 @@ impl MemMap {
     pub(crate) fn read_no_sideeffect(&self, addr: u16, ) -> u8 {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize],
-            0x0800..=0x1fff => self.ram[(addr % 0x800) as usize],
+            0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize],
             0x4000..=0x4015 => 0xff, // TODO: apu registers
             0x4016          => self.input.read_joy1_no_sideeffect(),
             0x4017          => self.input.read_joy2_no_sideeffect(),

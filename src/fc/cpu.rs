@@ -202,7 +202,7 @@ impl CPU {
 
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
-            0x2000..=0x3fff => self.ppu.read_mmio((addr % 8) + 0x2000, &mut self.mem),
+            0x2000..=0x3fff => self.ppu.read_mmio((addr & 0x7) + 0x2000, &mut self.mem),
             _ => self.mem.read(addr),
         }
     }
@@ -210,14 +210,14 @@ impl CPU {
     // TODO: better function name
     fn mem_read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
-            0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr % 8) + 0x2000),
+            0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr & 0x7) + 0x2000),
             _ => self.mem.read_no_sideeffect(addr),
         }
     }
 
     fn mem_write(&mut self, addr: u16, val: u8) -> () {
         match addr {
-            0x2000..=0x3fff => self.ppu.write_mmio((addr % 8) + 0x2000, val, &mut self.mem),
+            0x2000..=0x3fff => self.ppu.write_mmio((addr & 0x7) + 0x2000, val, &mut self.mem),
             0x4014 => {
                 self.ppu.write_oamdma(val);
                 self.reg.dma = true
