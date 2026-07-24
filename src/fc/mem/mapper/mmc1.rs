@@ -52,7 +52,9 @@ impl RealMapper for MMC1Mapper {
                 nesfile.prg_ram_size()
             }
         } else {
-            0x2000 // ?
+            // "Without NES2.0, the PRG-RAM size has too be assumed; 32KiB are sufficient for compatibility with all known titles."
+            // TODO? PRG RAM bank switching
+            0x8000
         };
 
         let chr_rom_size = nesfile.chr_rom_size();
@@ -73,8 +75,6 @@ impl RealMapper for MMC1Mapper {
         info!("  BATTERY: {}", battery);
         info!("  Nametable mirroring: {:?}", nametable_arrange);
 
-        let prg_banks_num = prg_rom_size / PRG_BANK_SIZE;
-
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let prg_ram = vec![0; prg_ram_size];
 
@@ -86,11 +86,11 @@ impl RealMapper for MMC1Mapper {
             // CHR RAM
             (vec![0; chr_ram_size], true)
         } else {
-            (vec![], false) // ?
+            (vec![], false)
         };
 
-        let prg_bank_mode = PRGBankMode::FixLast;   // ?
-        let chr_bank_mode = CHRBankMode::Switch8K;  // ?
+        let prg_bank_mode = PRGBankMode::FixLast;
+        let chr_bank_mode = CHRBankMode::Switch8K;
 
         MMC1Mapper {
             prg_rom,
@@ -101,10 +101,10 @@ impl RealMapper for MMC1Mapper {
             reg: Registers {
                 shift: 0x00,
                 control: 0b01100,
-                prg_bank0: 0x00,    // ?
-                prg_bank1: prg_banks_num - 1,    // ? 
-                chr_bank0: 0x00,    // ?
-                chr_bank1: 0x00,    // ?
+                prg_bank0: 0x00,
+                prg_bank1: 0x00,
+                chr_bank0: 0x00,
+                chr_bank1: 0x00,
             },
             prg_bank_mode,
             chr_bank_mode,
@@ -120,7 +120,6 @@ impl MMC1Mapper {
 
         self.reg.control = val & 0b11111;
 
-        // ?
         self.nametable_arrange = match self.reg.control & 0b11 {
             0b00 => SingleScreenA,
             0b01 => SingleScreenB,
@@ -184,7 +183,6 @@ impl MMC1Mapper {
     }
 
     fn write_internal(&mut self, addr: u16, val: u8) -> () {
-        // debug!("Writing 0x{0:02x} (0b{0:08b}) to address 0x{addr:04x}.", self.reg.shift);
         match addr {
             0x8000..=0x9fff => {
                 // Control
@@ -245,41 +243,49 @@ impl Memory for MMC1Mapper {
     }
 }
 
+macro_rules! bank_addr {
+    (CHR; $addr:expr, $addr_delta:expr, $bank_n:expr) => {
+        ($addr - $addr_delta) as usize + $bank_n * CHR_BANK_SIZE
+    };
+
+    (PRG; $addr:expr, $addr_delta:expr, $bank_n:expr) => {
+        ($addr - $addr_delta) as usize + $bank_n * PRG_BANK_SIZE
+    };
+}
+
 impl Mapper for MMC1Mapper {
     fn read_chr(&self, addr: u16) -> u8 {
         if self.chr_rxm.len() == 0 {
             return 0xff;
         }
 
-        let real_banks = self.chr_rxm.len() / CHR_BANK_SIZE;
+        let banks = self.chr_rxm.len() / CHR_BANK_SIZE;
 
         if let Switch8K = self.chr_bank_mode {
-            let bank = (self.reg.chr_bank0 & 0b11110) % real_banks;
-            // debug!("Reading from to bank {bank} addr {addr:04x}");
+            let bank = (self.reg.chr_bank0 & 0b11110) % banks;
 
             self.chr_rxm[addr as usize + bank * CHR_BANK_SIZE]
         } else {
             match addr {
-                0x0000..=0x0fff => self.chr_rxm[addr as usize + (self.reg.chr_bank0 % real_banks) * CHR_BANK_SIZE],
-                0x1000..=0x1fff => self.chr_rxm[(addr - 0x1000) as usize + (self.reg.chr_bank1 % real_banks) * CHR_BANK_SIZE],
+                0x0000..=0x0fff => self.chr_rxm[bank_addr!(CHR; addr, 0x0000, (self.reg.chr_bank0 % banks))],
+                0x1000..=0x1fff => self.chr_rxm[bank_addr!(CHR; addr, 0x1000, (self.reg.chr_bank1 % banks))],
                 _ => unreachable!(),
             }
         }
     }
 
     fn write_chr(&mut self, addr: u16, val: u8) -> () {
-        let real_banks = self.chr_rxm.len() / CHR_BANK_SIZE;
+        let banks = self.chr_rxm.len() / CHR_BANK_SIZE;
 
         if self.chr_writable {
             if let Switch8K = self.chr_bank_mode {
-                let bank = (self.reg.chr_bank0 & 0b11110) % real_banks;
-                // debug!("Writing {val} to bank {bank} addr {addr:04x}");
+                let bank = (self.reg.chr_bank0 & 0b11110) % banks;
 
-                self.chr_rxm[addr as usize + bank * CHR_BANK_SIZE] = val;
+                self.chr_rxm[bank_addr!(CHR; addr, 0x0000, bank)] = val;
             } else {
                 match addr {
-                    0x0000..=0x0fff => self.chr_rxm[addr as usize + (self.reg.chr_bank0 % real_banks) * CHR_BANK_SIZE] = val,
-                    0x1000..=0x1fff => self.chr_rxm[(addr - 0x1000) as usize + (self.reg.chr_bank1 % real_banks) * CHR_BANK_SIZE] = val,
+                    0x0000..=0x0fff => self.chr_rxm[bank_addr!(CHR; addr, 0x0000, (self.reg.chr_bank0 % banks))] = val,
+                    0x1000..=0x1fff => self.chr_rxm[bank_addr!(CHR; addr, 0x1000, (self.reg.chr_bank1 % banks))] = val,
                     _ => unreachable!(),
                 }
             }
@@ -295,6 +301,8 @@ impl Mapper for MMC1Mapper {
     }
 
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
+        let banks = self.prg_rom.len() / CHR_BANK_SIZE;
+
         match addr {
             // TODO: handle writes when no ram.
             0x6000..=0x7fff => {
@@ -303,20 +311,23 @@ impl Mapper for MMC1Mapper {
             },
             0x8000..=0xbfff => {
                 // "16KB PRG-ROM bank, either switchable or fixed to the first bank"
-                if let PRGBankMode::FixAll = self.prg_bank_mode {
-                    self.prg_rom[(addr - 0x8000) as usize + (self.reg.prg_bank0 & 0b11110) * PRG_BANK_SIZE]
+                let bank = if let PRGBankMode::FixAll = self.prg_bank_mode {
+                    self.reg.prg_bank0 & 0b11110
                 } else {
-                    self.prg_rom[(addr - 0x8000) as usize + self.reg.prg_bank0 * PRG_BANK_SIZE]
-                }
+                    self.reg.prg_bank0
+                };
+
+                self.prg_rom[bank_addr!(PRG; addr, 0x8000, (bank % banks))]
             }
             0xc000..=0xffff => {
                 // "16KB PRG-ROM bank, either fixed to the last bank or switchable"
-                if let PRGBankMode::FixAll = self.prg_bank_mode {
-                    self.prg_rom[(addr - 0x8000) as usize + (self.reg.prg_bank0 & 0b11110) * PRG_BANK_SIZE]
+                let (start_addr, bank) = if let PRGBankMode::FixAll = self.prg_bank_mode {
+                    (0x8000, self.reg.prg_bank0 & 0b11110)
                 } else {
-                    // debug!("reading address: {addr:04x}, curr bank: {}", self.reg.prg_bank1);
-                    self.prg_rom[(addr - 0xc000) as usize + self.reg.prg_bank1 * PRG_BANK_SIZE]
-                }
+                    (0xc000, self.reg.prg_bank1)
+                };
+
+                self.prg_rom[bank_addr!(PRG; addr, start_addr, (bank % banks))]
             }
             _ => unreachable!()
         }

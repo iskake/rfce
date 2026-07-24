@@ -116,9 +116,6 @@ impl RealMapper for MMC3Mapper {
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
         let chr_ram = vec![0; chr_ram_size];
 
-        // let prg_bank_mode = PRGBankMode::FixLast;   // ?
-        // let chr_bank_mode = CHRBankMode::Switch8K;  // ?
-
         MMC3Mapper {
             prg_rom,
             prg_ram,
@@ -413,7 +410,7 @@ impl Mapper for MMC3Mapper {
                 // "8KB switchable/fixed PRG ROM bank"
                 let bank = if let Swap8000 = self.prg_bank_mode {
                     // Switchable using prg_bank0
-                    self.reg.prg_bank0
+                    self.reg.prg_bank0 % banks
                 } else {
                     // Fixed to second-to-last bank (-2)
                     banks - 2
@@ -423,7 +420,9 @@ impl Mapper for MMC3Mapper {
             }
             0xa000..=0xbfff => {
                 // "8KB switchable PRG ROM bank"
-                self.prg_rom[bank_addr!(PRG; addr, 0xa000, self.reg.prg_bank1)]
+                let bank = self.reg.prg_bank1 % banks;
+
+                self.prg_rom[bank_addr!(PRG; addr, 0xa000, bank)]
             }
             0xc000..=0xdfff => {
                 // "8KB switchable/fixed PRG ROM bank"
@@ -432,7 +431,7 @@ impl Mapper for MMC3Mapper {
                     banks - 2
                 } else {
                     // Switchable using prg_bank0
-                    self.reg.prg_bank0
+                    self.reg.prg_bank0 % banks
                 };
 
                 self.prg_rom[bank_addr!(PRG; addr, 0xc000, bank)]
