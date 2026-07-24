@@ -1,14 +1,14 @@
-mod tile;
 mod sprite;
+mod tile;
 
 use log::debug;
 use rgb::*;
-use tile::Tile;
 use sprite::Sprite;
+use tile::Tile;
 
 use crate::{bits::Bitwise, fc::mem::mapper::Mapper};
 
-use super::{mem::MemMap, CPU_FREQ};
+use super::{CPU_FREQ, mem::MemMap};
 
 pub const VRAM_SIZE: usize = NAMETABLE_SIZE * 2;
 
@@ -21,7 +21,7 @@ const SPRITE_SIZE: usize = 4;
 const TILE_SIZE: u16 = 16;
 const PALETTE_RAM_SIZE: usize = 0x20;
 
-pub const PICTURE_WIDTH:  usize = 256;
+pub const PICTURE_WIDTH: usize = 256;
 pub const PICTURE_HEIGHT: usize = 240;
 
 const TILE_SIZE_PIXELS: usize = 8;
@@ -30,7 +30,7 @@ const SPRITE_HEIGHT_SMALL: u8 = 8;
 const SPRITE_HEIGHT_LARGE: u8 = 16;
 
 pub const SCANLINE_DURATION: u32 = 341;
-pub const FRAME_SCANLINES:   u32 = 262;
+pub const FRAME_SCANLINES: u32 = 262;
 pub const PPU_FREQ: f64 = CPU_FREQ * 3.0;
 
 pub const FRAMERATE: f64 = PPU_FREQ / (341.0 * 261.0 + 340.5);
@@ -93,12 +93,12 @@ struct OAMSystem {
 impl OAMSystem {
     pub fn new() -> OAMSystem {
         OAMSystem {
-            sprites: [ Sprite {
+            sprites: [Sprite {
                 idx: 0xff,
                 y: 0,
                 tile: 0,
                 attrs: 0,
-                x: 0
+                x: 0,
             }; 8],
             tmp_idxes: [0xff; 8],
             oam_secondary: [0; OAM_SIZE / 2],
@@ -151,16 +151,19 @@ impl PPU {
         println!("PPU STATE:");
         println!(
             "  bus: {:04x}, v: {:04x}, t: {:04x}, x: {:02x}",
-            self.reg.addr_bus,
-            self.reg.v,
-            self.reg.t,
-            self.reg.scroll_x
+            self.reg.addr_bus, self.reg.v, self.reg.t, self.reg.scroll_x
         );
         let ppuctrl: u8 = self.reg.control.into();
         let ppustatus: u8 = self.reg.status.into();
         let ppumask: u8 = self.reg.mask.into();
-        println!("  ppuctrl: {:08b}, ppustatus: {:08b}, ppumask: {:08b}", ppuctrl, ppustatus, ppumask);
-        println!("  cycles: {}, scanlines: {}, frame: {}", self.cycle, self.scanline, self.frame);
+        println!(
+            "  ppuctrl: {:08b}, ppustatus: {:08b}, ppumask: {:08b}",
+            ppuctrl, ppustatus, ppumask
+        );
+        println!(
+            "  cycles: {}, scanlines: {}, frame: {}",
+            self.cycle, self.scanline, self.frame
+        );
     }
 
     pub fn init(&mut self) -> () {
@@ -210,7 +213,6 @@ impl PPU {
         self.scanline == 240
     }
 
-
     pub(crate) fn oamdma(&self) -> u8 {
         self.reg.oam_dma
     }
@@ -233,7 +235,7 @@ impl PPU {
             if self.cycle >= SCANLINE_DURATION {
                 // TODO? do something more..?
                 self.cycle = 0;
-                self.scanline +=1;
+                self.scanline += 1;
 
                 if self.scanline >= FRAME_SCANLINES {
                     // TODO? do something..?
@@ -252,8 +254,16 @@ impl PPU {
         if self.cpu_cycles_prev != 0 && self.reg.addr_bus & 0x1000 != 0 {
             // Rising edge
             if (self.cpu_cycles as isize - self.cpu_cycles_prev as isize) >= 3 {
-                debug!("PPU address rising edge at line: {}, cycle: {}", self.scanline, self.cycle);
-                debug!("  {} - {} = {}", self.cpu_cycles, self.cpu_cycles_prev, self.cpu_cycles - self.cpu_cycles_prev);
+                debug!(
+                    "PPU address rising edge at line: {}, cycle: {}",
+                    self.scanline, self.cycle
+                );
+                debug!(
+                    "  {} - {} = {}",
+                    self.cpu_cycles,
+                    self.cpu_cycles_prev,
+                    self.cpu_cycles - self.cpu_cycles_prev
+                );
                 // "The MMC3 scanline counter is based entirely on PPU A12, triggered on
                 // a rising edge after the line has remained low for three falling edges of M2"
                 mem.dec_irq_counter();
@@ -363,13 +373,19 @@ impl PPU {
         // TODO: check for cycles < 29658 before allowing writes?
         self.reg.control = val.into();
         self.reg.t = (self.reg.t & 0xf3ff) | (val as u16 & 0b11) << 10;
-        debug!("Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x}) at (line: {}, cyc: {})", self.scanline, self.cycle);
+        debug!(
+            "Wrote ${val:02x} to PPUCTRL (${ADDRESS_PPUCTRL:04x}) at (line: {}, cyc: {})",
+            self.scanline, self.cycle
+        );
     }
 
     fn write_ppumask(&mut self, val: u8) {
         // TODO: "writes ignored until first pre-render scanline"
         self.reg.mask = val.into();
-        debug!("Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x}) at (line: {}, cyc: {})", self.scanline, self.cycle);
+        debug!(
+            "Wrote ${val:02x} to PPUMASK (${ADDRESS_PPUMASK:04x}) at (line: {}, cyc: {})",
+            self.scanline, self.cycle
+        );
     }
 
     fn read_ppustatus(&mut self) -> u8 {
@@ -415,7 +431,10 @@ impl PPU {
             self.reg.t = self.reg.t & 0xffe0 | x_coarse;
         }
 
-        debug!("Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {}) at (line: {}, cyc: {})", self.reg.write_toggle, self.scanline, self.cycle);
+        debug!(
+            "Wrote ${val:02x} to PPUSCROLL (${ADDRESS_PPUSCROLL:04x}) (lo: {}) at (line: {}, cyc: {})",
+            self.reg.write_toggle, self.scanline, self.cycle
+        );
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
@@ -433,7 +452,10 @@ impl PPU {
             self.reg.t = (self.reg.t & 0x00ff) | ((val as u16 & 0x3f) << 8);
         }
 
-        debug!("Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})", self.reg.write_toggle);
+        debug!(
+            "Wrote ${val:02x} to PPUADDR (${ADDRESS_PPUADDR:04x}) (lo: {})",
+            self.reg.write_toggle
+        );
 
         self.reg.write_toggle = !self.reg.write_toggle;
 
@@ -504,7 +526,7 @@ impl PPU {
             65..=256 => {       // Sprite evaluation
                 if self.scanline == 260 {
                     // "No sprite eval on pre-prender scanline"
-                    return
+                    return;
                 }
 
                 if self.cycle & 1 == 1 {
@@ -566,10 +588,10 @@ impl PPU {
             257..=320 => {      // Sprite fetches
                 if self.cycle == 257 {
                     for i in 0..8 {
-                        o.sprites[i].y     = o.oam_secondary[i * 4];
-                        o.sprites[i].tile  = o.oam_secondary[i * 4 + 1];
+                        o.sprites[i].y = o.oam_secondary[i * 4];
+                        o.sprites[i].tile = o.oam_secondary[i * 4 + 1];
                         o.sprites[i].attrs = o.oam_secondary[i * 4 + 2];
-                        o.sprites[i].x     = o.oam_secondary[i * 4 + 3];
+                        o.sprites[i].x = o.oam_secondary[i * 4 + 3];
                     }
                 }
             },
@@ -592,7 +614,7 @@ impl PPU {
                         o.sprite_0_hit_curr_scanline = false;
                     }
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -615,7 +637,7 @@ impl PPU {
                 if self.cycle == 1 {
                     self.reg.status.vblank = false;
                     debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) vblank flag (bit 7)");
-                    self.reg.status.sprite_0_hit = false; 
+                    self.reg.status.sprite_0_hit = false;
                     debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) sprite 0 hit flag (bit 6)");
                 }
 
@@ -641,7 +663,7 @@ impl PPU {
                         }
                     }
                 }
-            },
+            }
             _ => unreachable!(),
         }
     }
@@ -676,24 +698,23 @@ impl PPU {
                         1 => {
                             // "Garbage nametable byte"
                             self.read_addr(self.reg.control.nametable_addr, mem);
-                        }, // 257
+                        } // 257
                         3 => {
                             // "Garbage nametable byte"
                             self.read_addr(self.reg.control.nametable_addr, mem);
-                        }, // 259
+                        } // 259
                         5 => {
                             // "Pattern table tile low"
                             // TODO: this is basically just to get MMC3 IRQ working. Look into implementing it properly
                             self.read_addr(0x1000, mem);
-                        }, // 261
+                        } // 261
                         7 => {
                             // "Pattern table tile high"
                             // TODO: same again
                             self.read_addr(0x1000, mem);
-                        }, // 263
-                        _ => {}, // other
+                        } // 263
+                        _ => {} // other
                     }
-
 
                     // TODO2: "The shifters are reloaded during ticks 9, 17, 25, ..., 257."
                 }
@@ -706,7 +727,7 @@ impl PPU {
                         self.shl_shift_registers(8);
                     }
                 }
-            },
+            }
             337..=340 => {
                 if self.rendering_enabled() {
                     // TODO: two ppu fetches
@@ -715,7 +736,7 @@ impl PPU {
                         self.cycle = 340;
                     }
                 }
-            }, // fetch two bytes
+            } // fetch two bytes
             _ => unreachable!(),
         }
         // }
@@ -772,7 +793,7 @@ impl PPU {
                 } else {
                     self.curr_pattern_hi = self.read_addr(addr + 8, mem)
                 }
-            },
+            }
             0 => {
                 self.inc_hori();
 
@@ -780,7 +801,7 @@ impl PPU {
                     self.inc_vert();
                 }
             }
-            _ => {},
+            _ => {}
         }
     }
 
@@ -806,24 +827,20 @@ impl PPU {
             let spr_height = self.reg.control.sprites_large as u32;
 
             if y >= spr.y as u32
-                && y-1 <= spr.y as u32 + spr_height
+                && y - 1 <= spr.y as u32 + spr_height
                 && x >= spr.x as u32
                 && x < spr.x as u32 + SPRITE_WIDTH as u32
                 && self.reg.mask.sprites_enable
             {
                 // Hit sprite
-                let rel_y = (y-1 - spr.y as u32) as u16;
+                let rel_y = (y - 1 - spr.y as u32) as u16;
                 let rel_x = (x - spr.x as u32) as usize;
 
                 let large_sprites = spr_height > SPRITE_HEIGHT_SMALL as u32;
                 let is_second_sprite = y > spr.y as u32 + SPRITE_HEIGHT_SMALL as u32;
 
                 let pattern_table_start = if large_sprites {
-                    if spr.tile & 1 == 0 {
-                        0x0000
-                    } else {
-                        0x1000
-                    }
+                    if spr.tile & 1 == 0 { 0x0000 } else { 0x1000 }
                 } else {
                     self.reg.control.spr_pattern_addr
                 };
@@ -840,7 +857,6 @@ impl PPU {
                     spr.tile
                 };
 
-
                 let rel_y = if spr.flipped_vertical() {
                     if large_sprites && !is_second_sprite {
                         7 - rel_y + 16
@@ -851,22 +867,14 @@ impl PPU {
                     rel_y
                 };
 
-                let second_sprite_delta = if is_second_sprite {
-                    8
-                } else {
-                    0
-                };
+                let second_sprite_delta = if is_second_sprite { 8 } else { 0 };
 
                 let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta);
                 let addr_hi = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta + 8);
                 let tile_line_lo = self.read_addr_no_sideeffect(addr_lo, mem);
                 let tile_line_hi = self.read_addr_no_sideeffect(addr_hi, mem);
 
-                let rel_x = if spr.flipped_horizontal() {
-                    rel_x
-                } else {
-                    7 - rel_x
-                };
+                let rel_x = if spr.flipped_horizontal() { rel_x } else { 7 - rel_x };
                 let b0 = tile_line_lo.test_bit(rel_x) as u8;
                 let b1 = tile_line_hi.test_bit(rel_x) as u8;
 
@@ -893,13 +901,17 @@ impl PPU {
             }
         }
 
-        let (color_idx, use_sprite) = if self.reg.mask.sprites_enable && (spr_in_front || bg_color == 0) && spr_color != 0 {
-            (spr_color, true)
-        } else if self.reg.mask.bg_enable {
-            (bg_color as u8, false)
-        } else {
-            (0, false)
-        };
+        let (color_idx, use_sprite) =
+            if self.reg.mask.sprites_enable
+            && (spr_in_front || bg_color == 0)
+            && spr_color != 0
+            {
+                (spr_color, true)
+            } else if self.reg.mask.bg_enable {
+                (bg_color as u8, false)
+            } else {
+                (0, false)
+            };
 
         let pix_val = color_idx;
 
@@ -951,7 +963,7 @@ impl PPU {
         let img_w = 2 * PICTURE_WIDTH;
 
         for nametable_num in 0..4 {
-            for nametable_byte in 0..(NAMETABLE_SIZE - ATTRIBUTE_TABLE_SIZE /* * 4 */) {
+            for nametable_byte in 0..(NAMETABLE_SIZE - ATTRIBUTE_TABLE_SIZE/* * 4 */) {
                 let nametable_x = nametable_byte % 32;
                 let nametable_y = nametable_byte >> 5;
 
@@ -964,7 +976,7 @@ impl PPU {
                 let tile_ptr = tile_idx as u16 * TILE_SIZE;
 
                 let bg_addr = self.reg.control.bg_pattern_addr;
-                let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr+TILE_SIZE)
+                let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr + TILE_SIZE)
                     .map(|x| mem.mapper.read_chr(x + bg_addr))
                     .collect();
 
@@ -1003,7 +1015,7 @@ impl PPU {
         let y = tile_y / 4;
         let addr = base_addr + (y * 0x8) + x;
 
-        let attr = self.read_addr_no_sideeffect(addr as u16, mem);  // ?
+        let attr = self.read_addr_no_sideeffect(addr as u16, mem); // ?
 
         self.pal_idx_from_attr(attr, tile_x, tile_y)
     }
@@ -1121,7 +1133,7 @@ struct PPUMask {
     sprites_enable: bool,
     emphasize_red: bool,
     emphasize_green: bool,
-    emphasize_blue: bool
+    emphasize_blue: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -1135,14 +1147,18 @@ impl Registers {
     pub fn new() -> Registers {
         Registers {
             control: 0b0000_0000.into(),
-            mask:    0b0000_0000.into(),
-            status:  PPUStatus { sprite_overflow: false, sprite_0_hit: false, vblank: false },
+            mask: 0b0000_0000.into(),
+            status: PPUStatus {
+                sprite_overflow: false,
+                sprite_0_hit: false,
+                vblank: false,
+            },
             oam_addr: 0x00,
             x_y_scroll: 0x0000,
             // vram_addr: 0x0000,
             // vram_data: 0x00,
             oam_data: 0x00, //?
-            oam_dma:  0x00, //?
+            oam_dma: 0x00,  //?
             // Internal
             io_bus: 0x00,
             v: 0x00,        // ?
@@ -1159,7 +1175,7 @@ impl From<u8> for PPUControl {
     fn from(val: u8) -> Self {
         PPUControl {
             nametable_addr:   ((val & 0b11) as u16) << 10 | 0x2000,
-            vram_addr_inc:    if val.test_bit(2) {32} else {1},
+            vram_addr_inc:    if val.test_bit(2) { 32 } else { 1 },
             spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
             bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
             sprites_large:    if val.test_bit(5) { SPRITE_HEIGHT_LARGE } else { SPRITE_HEIGHT_SMALL },
@@ -1178,7 +1194,7 @@ impl Into<u8> for PPUControl {
         | ((self.sprites_large >> 4) as u8)     << 5
         | /* (self.ppu_master_slave as u8) */0  << 6
         | (self.nmi_enable as u8)               << 7
-   }
+    }
 }
 
 impl From<u8> for PPUMask {

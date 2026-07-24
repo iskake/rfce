@@ -1,3 +1,4 @@
 struct_field_align_threshold = 20
 enum_discrim_align_threshold = 20
 blank_lines_upper_bound = 3
+max_width = 120
