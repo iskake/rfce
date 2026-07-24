@@ -1,6 +1,13 @@
 use log::info;
 
-use crate::fc::{mem::{Memory, cart::NESFile, mapper::{Mapper, MapperType, RealMapper}}, ppu};
+use crate::fc::{
+    mem::{
+        Memory,
+        cart::NESFile,
+        mapper::{Mapper, MapperType, RealMapper},
+    },
+    ppu,
+};
 
 const NROM256_PRG_ROM_SIZE: usize = 32_768;
 
@@ -43,7 +50,8 @@ impl RealMapper for NROMMapper {
         info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
         info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
         info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
-        info!("  Nametable mirroring: {} ({} arrangement)",
+        info!(
+            "  Nametable mirroring: {} ({} arrangement)",
             if nametable_v_mirror { "vertical" } else { "horizontal" },
             if nametable_v_mirror { "horizontal" } else { "vertical" }
         );
@@ -52,7 +60,12 @@ impl RealMapper for NROMMapper {
         let prg_ram = vec![0; prg_ram_size];
         let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
 
-        NROMMapper { prg_rom, prg_ram, chr_rom, nametable_v_mirror}
+        NROMMapper {
+            prg_rom,
+            prg_ram,
+            chr_rom,
+            nametable_v_mirror,
+        }
     }
 }
 
@@ -66,7 +79,7 @@ impl Memory for NROMMapper {
             0x6000..=0x7fff => {
                 // TODO: handle mirroring/no ram
                 self.prg_ram[(addr - 0x6000) as usize] = val;
-            },
+            }
             _ => (),
         }
     }
@@ -79,7 +92,7 @@ impl Mapper for NROMMapper {
     }
 
     fn write_chr(&mut self, _addr: u16, _val: u8) -> () {
-        ()  // TODO?
+        () // TODO?
     }
 
     fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8 {
@@ -95,13 +108,16 @@ impl Mapper for NROMMapper {
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x6000..=0x7fff => {
+                // PRG RAM
                 // TODO: handle mirroring/no ram
                 self.prg_ram[(addr - 0x6000) as usize]
-            },
+            }
             0x8000..=0xbfff => {
+                // PRG ROM
                 self.prg_rom[(addr - 0x8000) as usize]
-            },
+            }
             0xc000..=0xffff => {
+                // PRG ROM (256KiB or mirrored)
                 if self.prg_rom.len() == NROM256_PRG_ROM_SIZE {
                     self.prg_rom[(addr - 0x8000) as usize]
                 } else {

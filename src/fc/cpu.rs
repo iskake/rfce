@@ -114,6 +114,7 @@ impl CPU {
             self.cycles, self.reg.nmi, self.reg.irq
         );
         self.ppu.print_state();
+        self.mem.print_state();
 
         let inst = self.fetch_next_inst_nocycle();
         let operand_u8 = self.mem_read_no_sideeffect(self.reg.pc + 1);
@@ -156,7 +157,7 @@ impl CPU {
         self.init();
     }
 
-    pub fn handle_nmi(&mut self) -> () {
+    fn handle_nmi(&mut self) -> () {
         debug!("NMI");
 
         self.push(self.reg.pc.msb()); // +2 cycles
@@ -171,6 +172,26 @@ impl CPU {
 
         self.reg.pc = addr;
         self.reg.nmi = true;
+    }
+
+    fn handle_irq(&mut self) -> () {
+        debug!("IRQ");
+
+        self.push(self.reg.pc.msb()); // +2 cycles
+        self.push(self.reg.pc.lsb()); // +2 cycles
+
+        self.push(self.reg.p.into()); // +2 cycles
+
+        let l = self.read_addr_nocycle(IRQ_VECTOR);
+        let m = self.read_addr_nocycle(IRQ_VECTOR + 1);
+        let addr = as_address(l, m);
+        self.cycle(); // +1 cycle
+
+        // Disable interrupts
+        self.reg.p.i = true;
+
+        self.reg.pc = addr;
+        self.reg.irq = false;
     }
 
     fn handle_oam_dma(&mut self) {
@@ -197,7 +218,7 @@ impl CPU {
     /// Cycles: `1`
     pub fn cycle(&mut self) -> () {
         self.cycles += 1;
-        self.ppu.cycle(&mut self.mem);
+        self.ppu.cycle(&mut self.mem, self.cycles as usize);
     }
 
     fn mem_read(&mut self, addr: u16) -> u8 {
@@ -233,8 +254,12 @@ impl CPU {
         self.mem_read_no_sideeffect(addr)
     }
 
-    pub fn read_addr_ppu(&self, addr: u16) -> u8 {
-        self.ppu.read_addr(addr, &self.mem)
+    pub fn read_addr_ppu(&mut self, addr: u16) -> u8 {
+        self.ppu.read_addr(addr, &mut self.mem)
+    }
+
+    pub fn read_addr_ppu_no_sideeffect(&self, addr: u16) -> u8 {
+        self.ppu.read_addr_no_sideeffect(addr, &self.mem)
     }
 
     /// Read the value at the address `addr`
@@ -602,11 +627,20 @@ impl CPU {
             self.cycle();
         }
 
-        // Interrupt handling
+        // NMI handling
         if self.ppu.nmi_enable() && self.ppu.is_vblank() && !self.reg.nmi {
             self.handle_nmi();
         } else if self.reg.nmi && !self.ppu.is_vblank() {
             self.reg.nmi = false;
+        }
+
+        // IRQ handling 
+        if !self.reg.p.i && self.mem.irq_triggered() {
+            // panic!("irq");
+            self.handle_irq();
+            self.mem.irq_un_trigger();
+        } else {
+            self.reg.irq = false;
         }
     }
 

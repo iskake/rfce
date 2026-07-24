@@ -1,16 +1,39 @@
 use cart::NESFile;
 use log::warn;
-use mapper::{Mapper, RealMapper};
 use mapper::nrom::NROMMapper;
+use mapper::{Mapper, RealMapper};
 
 use crate::fc::input::Controller;
 use crate::fc::mem::mapper::mmc1::MMC1Mapper;
+use crate::fc::mem::mapper::mmc3::MMC3Mapper;
 
 pub mod cart;
 pub mod mapper;
 
 const MAPPER_START_ADDRESS: usize = 0x4020;
 const MAPPER_SPACE: usize = 0x10000 - MAPPER_START_ADDRESS;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum NametableArrangement {
+    HorizontalMirroring,
+    VerticalMirroring,
+    SingleScreenA,
+    SingleScreenB,
+    FourScreen,
+}
+
+impl NametableArrangement {
+    fn nametable_addr_fix(self: NametableArrangement, addr: u16) -> u16 {
+        let a = addr - 0x2000;
+        match self {
+            NametableArrangement::HorizontalMirroring => ((a & 0x800) >> 1) | (a & 0x3ff),
+            NametableArrangement::VerticalMirroring => a & 0x7ff,
+            NametableArrangement::SingleScreenA => a & 0x3ff,
+            NametableArrangement::SingleScreenB => (a & 0x3ff) + 0x400,
+            NametableArrangement::FourScreen => a & 0x2fff,
+        }
+    }
+}
 
 pub trait Memory {
     fn read(&mut self, addr: u16) -> u8;
@@ -56,6 +79,7 @@ pub enum MapperImpl {
     DUMMY(DummyMapper),
     NROM(NROMMapper),
     MMC1(MMC1Mapper),
+    MMC3(MMC3Mapper),
 }
 
 impl Mapper for MapperImpl {
@@ -64,6 +88,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.read_no_sideeffect(addr),
             MapperImpl::NROM(m)   => m.read_no_sideeffect(addr),
             MapperImpl::MMC1(m)   => m.read_no_sideeffect(addr),
+            MapperImpl::MMC3(m)   => m.read_no_sideeffect(addr),
         }
     }
 
@@ -72,6 +97,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.read_chr(addr),
             MapperImpl::NROM(m)   => m.read_chr(addr),
             MapperImpl::MMC1(m)   => m.read_chr(addr),
+            MapperImpl::MMC3(m)   => m.read_chr(addr),
         }
     }
 
@@ -80,6 +106,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.write_chr(addr, val),
             MapperImpl::NROM(m)   => m.write_chr(addr, val),
             MapperImpl::MMC1(m)   => m.write_chr(addr, val),
+            MapperImpl::MMC3(m)   => m.write_chr(addr, val),
         }
     }
 
@@ -88,14 +115,16 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.nametable_read(addr, vram),
             MapperImpl::NROM(m) => m.nametable_read(addr, vram),
             MapperImpl::MMC1(m) => m.nametable_read(addr, vram),
+            MapperImpl::MMC3(m) => m.nametable_read(addr, vram),
         }
     }
 
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; super::ppu::VRAM_SIZE]) -> () {
         match self {
             MapperImpl::DUMMY(m) => m.nametable_write(addr, val, vram),
-            MapperImpl::NROM(m) => m.nametable_write(addr, val, vram),
-            MapperImpl::MMC1(m) => m.nametable_write(addr, val, vram),
+            MapperImpl::NROM(m)   => m.nametable_write(addr, val, vram),
+            MapperImpl::MMC1(m)   => m.nametable_write(addr, val, vram),
+            MapperImpl::MMC3(m)   => m.nametable_write(addr, val, vram),
         }
     }
 }
@@ -106,6 +135,7 @@ impl Memory for MapperImpl {
             MapperImpl::DUMMY(m) => m.read(addr),
             MapperImpl::NROM(m)   => m.read(addr),
             MapperImpl::MMC1(m)   => m.read(addr),
+            MapperImpl::MMC3(m)   => m.read(addr),
         }
     }
 
@@ -114,6 +144,7 @@ impl Memory for MapperImpl {
             MapperImpl::DUMMY(m) => m.write(addr, val),
             MapperImpl::NROM(m)   => m.write(addr, val),
             MapperImpl::MMC1(m)   => m.write(addr, val),
+            MapperImpl::MMC3(m)   => m.write(addr, val),
         }
     }
 }
@@ -154,29 +185,25 @@ impl Memory for MemMap {
 }
 
 macro_rules! create_mapper {
-    ($mapper_type:ident, $mapper_type_mapper:ident, $nesfile:expr) => {
-        {
-            let mapper = Box::new(MapperImpl::$mapper_type($mapper_type_mapper::from_nesfile($nesfile)));
-            let mem_map = MemMap {
-                ram: [0; 0x800],
-                input: Controller::new(),
-                mapper,
-            };
-            Ok(mem_map)
-        }
-    };
+    ($mapper_type:ident, $mapper_type_mapper:ident, $nesfile:expr) => {{
+        let mapper = Box::new(MapperImpl::$mapper_type($mapper_type_mapper::from_nesfile($nesfile)));
+        let mem_map = MemMap {
+            ram: [0; 0x800],
+            input: Controller::new(),
+            mapper,
+        };
+        Ok(mem_map)
+    }};
 }
 
 macro_rules! unsupported_mapper {
-    ($mapper_type:expr) => {
-        {
-            warn!("WARNING: mapper not implemented ({})", $mapper_type);
-            Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Unsupported mapper ({})", $mapper_type)
-            ))
-        }
-    };
+    ($mapper_type:expr) => {{
+        warn!("WARNING: mapper not implemented ({})", $mapper_type);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Unsupported mapper ({})", $mapper_type),
+        ))
+    }};
 }
 
 impl MemMap {
@@ -192,7 +219,7 @@ impl MemMap {
         MemMap {
             ram: [0; 0x800],
             input: Controller::new(),
-            mapper
+            mapper,
         }
     }
 
@@ -200,16 +227,23 @@ impl MemMap {
         match nesfile.mapper_type() {
             mapper::MapperType::NROM => create_mapper!(NROM, NROMMapper, nesfile),
             mapper::MapperType::MMC1 => create_mapper!(MMC1, MMC1Mapper, nesfile),
-            mapper::MapperType::MMC2 => unsupported_mapper!("MMC6"),
-            mapper::MapperType::MMC3 => unsupported_mapper!("MMC6"),
-            mapper::MapperType::MMC4 => unsupported_mapper!("MMC6"),
-            mapper::MapperType::MMC5 => unsupported_mapper!("MMC6"),
+            mapper::MapperType::MMC2 => unsupported_mapper!("MMC2"),
+            mapper::MapperType::MMC3 => create_mapper!(MMC3, MMC3Mapper, nesfile),
+            mapper::MapperType::MMC4 => unsupported_mapper!("MMC4"),
+            mapper::MapperType::MMC5 => unsupported_mapper!("MMC5"),
             mapper::MapperType::MMC6 => unsupported_mapper!("MMC6"),
-            mapper::MapperType::UNKNOWN(i) => unsupported_mapper!(format!("{i:03}"))
+            mapper::MapperType::UNKNOWN(i) => unsupported_mapper!(format!("{i:03}")),
         }
     }
 
-    pub(crate) fn read_no_sideeffect(&self, addr: u16, ) -> u8 {
+    pub(super) fn print_state(&self) -> () {
+        match self.mapper.as_ref() {
+            MapperImpl::MMC3(m) => m.print_state(),
+            _ => {}
+        }
+    }
+
+    pub(crate) fn read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize],
             0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize],
@@ -220,5 +254,48 @@ impl MemMap {
             0x4020..=0xffff => self.mapper.read_no_sideeffect(addr),
             _ => unreachable!("Attempted to read PPU MMIO (address ${:04x})", addr),
         }
+    }
+
+    pub(crate) fn dec_irq_counter(&mut self) {
+        match self.mapper.as_mut() {
+            MapperImpl::MMC3(m) => m.dec_irq_counter(),
+            _ => {}
+        }
+    }
+
+    pub(crate) fn irq_triggered(&mut self) -> bool {
+        // Sources of IRQ:
+        // - APU DMC finish
+        // - APU frame counter
+        // - MMC3
+        // - MMC5
+        // - FDS
+        // - (other mappers)
+
+        // TODO
+        let apu_dmc = false;
+
+        // TODO
+        let apu_frame_counter = false;
+
+        let mapper = match self.mapper.as_ref() {
+            MapperImpl::MMC3(m) => m.irq_triggered(),
+            // MBC5
+            // MBC6
+            // FDS
+            _ => false,
+        };
+
+        apu_dmc || apu_frame_counter || mapper
+    }
+
+    pub(crate) fn irq_un_trigger(&mut self) -> () {
+        match self.mapper.as_mut() {
+            MapperImpl::MMC3(m) => m.irq_un_trigger(),
+            // MBC5
+            // MBC6
+            // FDS
+            _ => {}
+        };
     }
 }

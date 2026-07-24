@@ -65,6 +65,9 @@ pub struct PPU {
     shift_reg_hi: u16,
     // OAM things
     oam_sys: OAMSystem,
+    // For IRQ
+    cpu_cycles: usize,
+    cpu_cycles_prev: usize,
 
     // ??vvv
     frame_buf: Vec<u8>,
@@ -138,18 +141,25 @@ impl PPU {
             curr_pattern_hi: 0,
             shift_reg_lo: 0,
             shift_reg_hi: 0,
+
+            cpu_cycles: 0,
+            cpu_cycles_prev: 0,
         }
     }
 
     pub(super) fn print_state(&self) -> () {
         println!("PPU STATE:");
         println!(
-            "  v: {:04x}, t: {:04x}, x: {:02x}",
-            self.reg.v, self.reg.t, self.reg.scroll_x
+            "  bus: {:04x}, v: {:04x}, t: {:04x}, x: {:02x}",
+            self.reg.addr_bus,
+            self.reg.v,
+            self.reg.t,
+            self.reg.scroll_x
         );
         let ppuctrl: u8 = self.reg.control.into();
         let ppustatus: u8 = self.reg.status.into();
-        println!("  ppuctrl: {:02x}, ppustatus: {:02x}", ppuctrl, ppustatus);
+        let ppumask: u8 = self.reg.mask.into();
+        println!("  ppuctrl: {:08b}, ppustatus: {:08b}, ppumask: {:08b}", ppuctrl, ppustatus, ppumask);
         println!("  cycles: {}, scanlines: {}, frame: {}", self.cycle, self.scanline, self.frame);
     }
 
@@ -170,11 +180,14 @@ impl PPU {
         // ???vvv (as replacement of above line)
         self.reg.v = 0x00;
         self.reg.t = 0x00;
-        self.reg.t = 0x00;
+        self.reg.addr_bus = 0x0000;
         // ???^^^
         self.cycle = 0;
         self.scanline = 0;
         self.frame = 1;
+
+        self.cpu_cycles = 0;
+        self.cpu_cycles_prev = 0;
     }
 
     pub(crate) fn cycles(&self) -> u32 {
@@ -202,15 +215,16 @@ impl PPU {
         self.reg.oam_dma
     }
 
-    pub fn cycle(&mut self, mem: &mut MemMap) -> () {
+    pub fn cycle(&mut self, mem: &mut MemMap, cpu_cycles: usize) -> () {
         // TODO: should this call some other fn 3 times instead?
         // TODO: also, should this really just be a for loop...?
+        self.cpu_cycles = cpu_cycles;
+
         for _ in 0..3 {
             assert!(self.cycle < SCANLINE_DURATION);
             assert!(self.scanline < FRAME_SCANLINES);
 
-            if self.scanline != FRAME_SCANLINES - 1 && self.rendering_enabled() {
-                // No sprite eval on pre-prender scanline
+            if self.scanline <= 240 || self.scanline == 261 && self.rendering_enabled() {
                 self.sprite_eval();
             }
             self.render(mem);
@@ -230,7 +244,33 @@ impl PPU {
         }
     }
 
-    pub fn read_addr(&self, addr: u16, mem: &MemMap) -> u8 {
+    fn update_addr_bus(&mut self, addr: u16, mem: &mut MemMap) {
+        self.reg.addr_bus = addr;
+
+        // Based on Mesen `MMC3.h`
+        // (...I don't know enough electrical engineering to know what "remained low for three falling edges of M2" means...)
+        if self.cpu_cycles_prev != 0 && self.reg.addr_bus & 0x1000 != 0 {
+            // Rising edge
+            if (self.cpu_cycles as isize - self.cpu_cycles_prev as isize) >= 3 {
+                debug!("PPU address rising edge at line: {}, cycle: {}", self.scanline, self.cycle);
+                debug!("  {} - {} = {}", self.cpu_cycles, self.cpu_cycles_prev, self.cpu_cycles - self.cpu_cycles_prev);
+                // "The MMC3 scanline counter is based entirely on PPU A12, triggered on
+                // a rising edge after the line has remained low for three falling edges of M2"
+                mem.dec_irq_counter();
+            }
+            self.cpu_cycles_prev = 0
+        } else if self.cpu_cycles_prev == 0 {
+            self.cpu_cycles_prev = self.cpu_cycles;
+        }
+    }
+
+    pub fn read_addr(&mut self, addr: u16, mem: &mut MemMap) -> u8 {
+        self.update_addr_bus(addr, mem);
+
+        self.read_addr_no_sideeffect(addr, mem)
+    }
+
+    pub fn read_addr_no_sideeffect(&self, addr: u16, mem: &MemMap) -> u8 {
         match addr {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
@@ -241,6 +281,8 @@ impl PPU {
     }
 
     pub fn write_addr(&mut self, addr: u16, val: u8, mem: &mut MemMap) -> () {
+        self.update_addr_bus(addr, mem);
+
         match addr {
             0x0000..=0x1fff => mem.mapper.write_chr(addr, val),
             0x2000..=0x2fff => mem.mapper.nametable_write(addr, val, &mut self.vram),
@@ -306,7 +348,7 @@ impl PPU {
             ADDRESS_OAMADDR   => { self.reg.io_bus = val; self.write_oamaddr(val)},
             ADDRESS_OAMDATA   => { self.reg.io_bus = val; self.write_oamdata(val)},
             ADDRESS_PPUSCROLL => { self.reg.io_bus = val; self.write_ppuscroll(val)},
-            ADDRESS_PPUADDR   => { self.reg.io_bus = val; self.write_ppuaddr(val)},
+            ADDRESS_PPUADDR   => { self.reg.io_bus = val; self.write_ppuaddr(val, mem)},
             ADDRESS_PPUDATA   => { self.reg.io_bus = val; self.write_ppudata(val, mem)},
             ADDRESS_OAMDMA    => { self.reg.io_bus = val; self.write_oamdma(val)},
             _ => unreachable!(),
@@ -383,7 +425,7 @@ impl PPU {
         // self.reg.v = self.reg.addr_bus;
     }
 
-    fn write_ppuaddr(&mut self, val: u8) {
+    fn write_ppuaddr(&mut self, val: u8, mem: &mut MemMap) {
         // TODO? "palette corruption" & "bus conflict"?
         if self.reg.write_toggle {
             self.reg.t = (self.reg.t & 0xff00) | (val as u16);
@@ -396,11 +438,11 @@ impl PPU {
         self.reg.write_toggle = !self.reg.write_toggle;
 
         // TODO!!!! this should seemingly be delayed by some cycles
-        self.reg.addr_bus = self.reg.t;
+        self.update_addr_bus(self.reg.t, mem);
         self.reg.v = self.reg.addr_bus;
     }
 
-    fn read_ppudata(&mut self, mem: &MemMap) -> u8 {
+    fn read_ppudata(&mut self, mem: &mut MemMap) -> u8 {
         // TODO? "reading palette ram" & "read conflict with dpcm samples"?
         let old_val = self.reg.read_buf;
         let addr = self.reg.v;
@@ -411,7 +453,7 @@ impl PPU {
         let delta = self.reg.control.vram_addr_inc;
         debug!("delta: {}", delta);
         self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
-        self.reg.addr_bus = self.reg.v;
+        self.update_addr_bus(self.reg.v, mem);
 
         old_val
     }
@@ -423,7 +465,7 @@ impl PPU {
 
         let delta = self.reg.control.vram_addr_inc;
         self.reg.v = (self.reg.v + delta as u16) & 0x7fff;
-        self.reg.addr_bus = self.reg.v;
+        self.update_addr_bus(self.reg.v, mem);
     }
 
     pub fn write_oamdma(&mut self, val: u8) {
@@ -460,6 +502,11 @@ impl PPU {
                 o.m = 0;
             },
             65..=256 => {       // Sprite evaluation
+                if self.scanline == 260 {
+                    // "No sprite eval on pre-prender scanline"
+                    return
+                }
+
                 if self.cycle & 1 == 1 {
                     // Read from (primary) oam
                     o.oam_tmp = self.oam[o.n * 4 + o.m];
@@ -565,8 +612,6 @@ impl PPU {
                 }
             },
             261 => {     // dummy scanline (pre-render scanline)
-                self.rendering_fetch_data(mem); // TODO? should be blank scanline?
-
                 if self.cycle == 1 {
                     self.reg.status.vblank = false;
                     debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) vblank flag (bit 7)");
@@ -574,10 +619,26 @@ impl PPU {
                     debug!("cleared PPUSTATUS (${ADDRESS_PPUSTATUS:04x}) sprite 0 hit flag (bit 6)");
                 }
 
-                if self.cycle >= 280 && self.cycle <= 304 {
-                    // "Copy vertical scrolling value from t" (if rendering is enabled)
-                    if self.rendering_enabled() {
+                if self.cycle >= 1 && self.cycle < 257 {
+                    self.rendering_fetch_data(mem); // TODO? should be blank scanline?
+                    self.shl_shift_registers(1);
+                } else if self.cycle >= 257 && self.cycle < 320 {
+                    // Doesn't actually render anything, but _does_ perform the sprite tile fetches
+                    self.render_dot(mem);
+                }
+
+                if self.rendering_enabled() {
+                    if self.cycle >= 280 && self.cycle <= 304 {
+                        // "Copy vertical scrolling value from t" (if rendering is enabled)
                         self.reg.v = (self.reg.v & !0x7be0) | (self.reg.t & 0x7be0);
+
+                        // !!!!TODO?????
+                        self.update_addr_bus(self.reg.v, mem);
+                    } else if self.cycle >= 321 && self.cycle < 337 {
+                        self.rendering_fetch_data(mem);
+                        if self.cycle == 328 || self.cycle == 336 {
+                            self.shl_shift_registers(8);
+                        }
                     }
                 }
             },
@@ -610,17 +671,32 @@ impl PPU {
                         self.reg.v = (self.reg.v & !0x041f) | (self.reg.t & 0x041f);
                     }
 
-                    if self.scanline >= 280 && self.scanline < 304 {
-                        // ...
-                        self.reg.v = (self.reg.v & 0x041f) | (self.reg.t & !0x041f);
+                    // "The tile data for the sprites on the _next_ scanline are fetched here."
+                    match self.cycle & 0x7 {
+                        1 => {
+                            // "Garbage nametable byte"
+                            self.read_addr(self.reg.control.nametable_addr, mem);
+                        }, // 257
+                        3 => {
+                            // "Garbage nametable byte"
+                            self.read_addr(self.reg.control.nametable_addr, mem);
+                        }, // 259
+                        5 => {
+                            // "Pattern table tile low"
+                            // TODO: this is basically just to get MMC3 IRQ working. Look into implementing it properly
+                            self.read_addr(0x1000, mem);
+                        }, // 261
+                        7 => {
+                            // "Pattern table tile high"
+                            // TODO: same again
+                            self.read_addr(0x1000, mem);
+                        }, // 263
+                        _ => {}, // other
                     }
-                }
 
-                // TODO: garbage reads?
-                // TODO2: "The shifters are reloaded during ticks 9, 17, 25, ..., 257."
-                // if self.rendering_enabled() {
-                //     self.rendering_fetch_data(mem);
-                // }
+
+                    // TODO2: "The shifters are reloaded during ticks 9, 17, 25, ..., 257."
+                }
             },
             321..=336 => {  // fetch tile data for first two tiles for the next scanline
                 if self.rendering_enabled() {
@@ -709,7 +785,7 @@ impl PPU {
     }
 
     #[inline]
-    fn get_next_pixel(&mut self, mem: &MemMap) -> RGB<u8> {
+    fn get_next_pixel(&mut self, mem: &mut MemMap) -> RGB<u8> {
         let x_scroll_fine = self.reg.scroll_x;
         let y = self.scanline;
         let x = self.cycle - 1;
@@ -783,8 +859,8 @@ impl PPU {
 
                 let addr_lo = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta);
                 let addr_hi = pattern_table_start + ((tile_idx as u16 * TILE_SIZE) + rel_y - second_sprite_delta + 8);
-                let tile_line_lo = self.read_addr(addr_lo, mem);
-                let tile_line_hi = self.read_addr(addr_hi, mem);
+                let tile_line_lo = self.read_addr_no_sideeffect(addr_lo, mem);
+                let tile_line_hi = self.read_addr_no_sideeffect(addr_hi, mem);
 
                 let rel_x = if spr.flipped_horizontal() {
                     rel_x
@@ -884,7 +960,7 @@ impl PPU {
                 let nametable_addr = self.reg.control.nametable_addr;
                 let tile_addr = i + nametable_addr + (nametable_num * NAMETABLE_SIZE) as u16;
 
-                let tile_idx = self.read_addr(tile_addr, mem);
+                let tile_idx = self.read_addr_no_sideeffect(tile_addr, mem);
                 let tile_ptr = tile_idx as u16 * TILE_SIZE;
 
                 let bg_addr = self.reg.control.bg_pattern_addr;
@@ -927,7 +1003,7 @@ impl PPU {
         let y = tile_y / 4;
         let addr = base_addr + (y * 0x8) + x;
 
-        let attr = self.read_addr(addr as u16, mem);
+        let attr = self.read_addr_no_sideeffect(addr as u16, mem);  // ?
 
         self.pal_idx_from_attr(attr, tile_x, tile_y)
     }

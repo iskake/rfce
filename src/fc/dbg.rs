@@ -162,6 +162,12 @@ impl Debugger {
                 self.handle_breakpoint_add(break_type, val)
             }
             ["b" | "break", ..] => Err(String::from("Usage: break [address|scanline] <value>")),
+            ["d" | "delete", "all"] => {
+                self.handle_breakpoint_del("all", "")
+            }
+            ["d" | "delete", val] => {
+                self.handle_breakpoint_del("a", val)
+            }
             ["d" | "delete", break_type, val] => {
                 self.handle_breakpoint_del(break_type, val)
             }
@@ -237,7 +243,7 @@ impl Debugger {
             },
             "p" | "ppu" => {
                 let from_addr = (try_parse_hex(addr)? & 0xfff0) as u32;
-                let f = |a| self.fc.cpu.read_addr_ppu(a);
+                let f = |a| self.fc.cpu.read_addr_ppu_no_sideeffect(a);
                 self.print_mem_region(from_addr, from_addr + 0x30, f);
                 Ok(())
             },
@@ -329,6 +335,9 @@ impl Debugger {
     fn handle_breakpoint_del(&mut self, break_type: &str, val: &str) -> Result<(), String> {
         // Add breakpoint
         match break_type {
+            "all" => {
+                Ok(self.breakpoints.clear())
+            },
             "a" | "addr" | "address" => {
                 if !val.starts_with("$") && !val.starts_with("0x") {
                     Err(String::from(

@@ -1,17 +1,9 @@
 use log::{debug, info};
 
-use crate::fc::mem::{Memory, cart::NESFile, mapper::{Mapper, MapperType::{self}, RealMapper, mmc1::CHRBankMode::Switch8K}};
+use crate::fc::mem::{self, Memory, NametableArrangement, cart::NESFile, mapper::{Mapper, MapperType::{self}, RealMapper, mmc1::CHRBankMode::Switch8K}};
 
 const PRG_BANK_SIZE: usize = 0x4000;
 const CHR_BANK_SIZE: usize = 0x1000;
-
-#[derive(Debug)]
-enum NametableArrangement {
-    HorizontalMirroring,
-    VerticalMirroring,
-    SingleA,
-    SingleB,
-}
 
 #[derive(Debug)]
 enum PRGBankMode {
@@ -122,7 +114,7 @@ impl RealMapper for MMC1Mapper {
 
 impl MMC1Mapper {
     fn write_control(&mut self, val: u8) -> () {
-        use NametableArrangement::*;
+        use mem::NametableArrangement::*;
         use PRGBankMode::*;
         use CHRBankMode::*;
 
@@ -130,8 +122,8 @@ impl MMC1Mapper {
 
         // ?
         self.nametable_arrange = match self.reg.control & 0b11 {
-            0b00 => SingleA,
-            0b01 => SingleB,
+            0b00 => SingleScreenA,
+            0b01 => SingleScreenB,
             0b10 => VerticalMirroring,
             0b11 => HorizontalMirroring,
             _ => unreachable!(),
@@ -213,16 +205,6 @@ impl MMC1Mapper {
             _ => todo!("write {val:02x} to address {addr:04x}"),
         }
     }
-
-    fn nametable_addr_fix(&self, addr: u16) -> u16 {
-        let a = addr - 0x2000;
-        match self.nametable_arrange {
-            NametableArrangement::HorizontalMirroring => ((a & 0x800) >> 1) | (a & 0x3ff),
-            NametableArrangement::VerticalMirroring => a & 0x7ff,
-            NametableArrangement::SingleA => a & 0x3ff,
-            NametableArrangement::SingleB => (a & 0x3ff) + 0x400,
-        }
-    }
 }
 
 impl Memory for MMC1Mapper {
@@ -232,6 +214,7 @@ impl Memory for MMC1Mapper {
 
     fn write(&mut self, addr: u16, val: u8) -> () {
         if addr >= 0x6000 && addr < 0x8000 {
+            // TODO: handle writes when no ram.
             // Write to PRG RAM
             self.prg_ram[(addr - 0x6000) as usize] = val;
             return;
@@ -304,15 +287,16 @@ impl Mapper for MMC1Mapper {
     }
 
     fn nametable_read(&self, addr: u16, vram: [u8; crate::fc::ppu::VRAM_SIZE]) -> u8 {
-        vram[self.nametable_addr_fix(addr) as usize]
+        vram[self.nametable_arrange.nametable_addr_fix(addr) as usize]
     }
 
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; crate::fc::ppu::VRAM_SIZE]) -> () {
-        vram[self.nametable_addr_fix(addr) as usize] = val
+        vram[self.nametable_arrange.nametable_addr_fix(addr) as usize] = val
     }
 
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
+            // TODO: handle writes when no ram.
             0x6000..=0x7fff => {
                 // "8KB PRG-RAM bank (optional)"
                 self.prg_ram[(addr - 0x6000) as usize]
@@ -336,6 +320,5 @@ impl Mapper for MMC1Mapper {
             }
             _ => unreachable!()
         }
-
     }
 }
