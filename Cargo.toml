@@ -1,6 +1,6 @@
 [package]
 name = "rfce"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -15,3 +15,6 @@ sdl3 = { version = "0.18.4", features = ["unsafe_textures"] }
 
 [profile.dev]
 overflow-checks = false
+
+[features]
+build-sdl3 = ["sdl3/build-from-source"]
