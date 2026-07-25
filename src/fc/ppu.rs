@@ -48,6 +48,149 @@ const ADDRESS_PPUADDR:   u16 = 0x2006;
 const ADDRESS_PPUDATA:   u16 = 0x2007;
 const ADDRESS_OAMDMA:    u16 = 0x4014;
 
+struct Registers {
+    // $2000
+    control: PPUControl,
+    mask: PPUMask,
+    status: PPUStatus,
+    oam_addr: u8,
+    oam_data: u8,
+    x_y_scroll: u16,
+    // vram_addr: u16,
+    // vram_data: u8,
+    // $4014
+    oam_dma: u8,
+    // Internal
+    io_bus: u8,
+    v: u16,
+    t: u16,
+    scroll_x: u8,
+    write_toggle: bool,
+    addr_bus: u16,
+    read_buf: u8,
+}
+
+#[derive(Clone, Copy)]
+struct PPUControl {
+    nametable_addr: u16,
+    vram_addr_inc: u8,
+    spr_pattern_addr: u16,
+    bg_pattern_addr: u16,
+    sprites_large: u8,
+    // ppu_master_slave: bool,
+    nmi_enable: bool,
+}
+
+#[derive(Clone, Copy)]
+struct PPUMask {
+    grayscale: bool,
+    bg_mask: bool,
+    sprite_mask: bool,
+    bg_enable: bool,
+    sprites_enable: bool,
+    emphasize_red: bool,
+    emphasize_green: bool,
+    emphasize_blue: bool,
+}
+
+#[derive(Clone, Copy)]
+struct PPUStatus {
+    sprite_overflow: bool,
+    sprite_0_hit: bool,
+    vblank: bool,
+}
+
+impl Registers {
+    pub fn new() -> Registers {
+        Registers {
+            control: 0b0000_0000.into(),
+            mask: 0b0000_0000.into(),
+            status: PPUStatus {
+                sprite_overflow: false,
+                sprite_0_hit: false,
+                vblank: false,
+            },
+            oam_addr: 0x00,
+            x_y_scroll: 0x0000,
+            // vram_addr: 0x0000,
+            // vram_data: 0x00,
+            oam_data: 0x00, //?
+            oam_dma: 0x00,  //?
+            // Internal
+            io_bus: 0x00,
+            v: 0x00,        // ?
+            t: 0x00,        // ?
+            scroll_x: 0x00, // ?
+            write_toggle: false,
+            addr_bus: 0,
+            read_buf: 0,
+        }
+    }
+}
+
+impl From<u8> for PPUControl {
+    fn from(val: u8) -> Self {
+        PPUControl {
+            nametable_addr:   ((val & 0b11) as u16) << 10 | 0x2000,
+            vram_addr_inc:    if val.test_bit(2) { 32 } else { 1 },
+            spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
+            bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
+            sprites_large:    if val.test_bit(5) { SPRITE_HEIGHT_LARGE } else { SPRITE_HEIGHT_SMALL },
+            // ppu_master_slave: val.test_bit(6),
+            nmi_enable:       val.test_bit(7),
+        }
+    }
+}
+
+impl Into<u8> for PPUControl {
+    fn into(self) -> u8 {
+        ((self.nametable_addr & 0xc00) >> 10) as u8
+        | ((self.vram_addr_inc >> 5) as u8)     << 2
+        | ((self.spr_pattern_addr >> 12) as u8) << 3
+        | ((self.bg_pattern_addr >> 12) as u8)  << 4
+        | ((self.sprites_large >> 4) as u8)     << 5
+        | /* (self.ppu_master_slave as u8) */0  << 6
+        | (self.nmi_enable as u8)               << 7
+    }
+}
+
+impl From<u8> for PPUMask {
+    fn from(val: u8) -> Self {
+        PPUMask {
+            grayscale:       val.test_bit(0),
+            bg_mask:         val.test_bit(1),
+            sprite_mask:     val.test_bit(2),
+            bg_enable:       val.test_bit(3),
+            sprites_enable:  val.test_bit(4),
+            emphasize_red:   val.test_bit(5),
+            emphasize_green: val.test_bit(6),
+            emphasize_blue:  val.test_bit(7),
+        }
+    }
+}
+
+impl Into<u8> for PPUMask {
+    fn into(self) -> u8 {
+        (self.grayscale as u8)
+        | (self.bg_mask as u8)         << 1
+        | (self.sprite_mask as u8)     << 2
+        | (self.bg_enable as u8)       << 3
+        | (self.sprites_enable as u8)  << 4
+        | (self.emphasize_red as u8)   << 5
+        | (self.emphasize_green as u8) << 6
+        | (self.emphasize_blue as u8)  << 7
+   }
+}
+
+impl Into<u8> for PPUStatus {
+    fn into(self) -> u8 {
+        (self.sprite_overflow as u8) << 5
+        | (self.sprite_0_hit as u8)  << 6
+        | (self.vblank as u8)        << 7
+   }
+}
+
+
 pub struct PPU {
     reg: Registers,
     // pub chr: Box<dyn Mapper>,
@@ -1077,14 +1220,6 @@ impl PPU {
     }
 }
 
-/// Get the rgb color corresponding to the ppu color.
-fn as_rgb(color: u8) -> RGB8 {
-    let r = PALETTE_COLORS[3 * color as usize];
-    let g = PALETTE_COLORS[3 * color as usize + 1];
-    let b = PALETTE_COLORS[3 * color as usize + 2];
-    RGB8 { r, g, b }
-}
-
 // TODO? make it possible to change this?
 const PALETTE_COLORS: [u8; 0x40 * 3] = [
     // NOTE: the colors are from the default Mesen color palette.
@@ -1102,145 +1237,10 @@ const PALETTE_COLORS: [u8; 0x40 * 3] = [
     0xab, 0xb3, 0xf3, 0xcc, 0xb5, 0xeb, 0xf2, 0xb8, 0xb8, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-
-struct Registers {
-    // $2000
-    control: PPUControl,
-    mask: PPUMask,
-    status: PPUStatus,
-    oam_addr: u8,
-    oam_data: u8,
-    x_y_scroll: u16,
-    // vram_addr: u16,
-    // vram_data: u8,
-    // $4014
-    oam_dma: u8,
-    // Internal
-    io_bus: u8,
-    v: u16,
-    t: u16,
-    scroll_x: u8,
-    write_toggle: bool,
-    addr_bus: u16,
-    read_buf: u8,
-}
-
-#[derive(Clone, Copy)]
-struct PPUControl {
-    nametable_addr: u16,
-    vram_addr_inc: u8,
-    spr_pattern_addr: u16,
-    bg_pattern_addr: u16,
-    sprites_large: u8,
-    // ppu_master_slave: bool,
-    nmi_enable: bool,
-}
-
-#[derive(Clone, Copy)]
-struct PPUMask {
-    grayscale: bool,
-    bg_mask: bool,
-    sprite_mask: bool,
-    bg_enable: bool,
-    sprites_enable: bool,
-    emphasize_red: bool,
-    emphasize_green: bool,
-    emphasize_blue: bool,
-}
-
-#[derive(Clone, Copy)]
-struct PPUStatus {
-    sprite_overflow: bool,
-    sprite_0_hit: bool,
-    vblank: bool,
-}
-
-impl Registers {
-    pub fn new() -> Registers {
-        Registers {
-            control: 0b0000_0000.into(),
-            mask: 0b0000_0000.into(),
-            status: PPUStatus {
-                sprite_overflow: false,
-                sprite_0_hit: false,
-                vblank: false,
-            },
-            oam_addr: 0x00,
-            x_y_scroll: 0x0000,
-            // vram_addr: 0x0000,
-            // vram_data: 0x00,
-            oam_data: 0x00, //?
-            oam_dma: 0x00,  //?
-            // Internal
-            io_bus: 0x00,
-            v: 0x00,        // ?
-            t: 0x00,        // ?
-            scroll_x: 0x00, // ?
-            write_toggle: false,
-            addr_bus: 0,
-            read_buf: 0,
-        }
-    }
-}
-
-impl From<u8> for PPUControl {
-    fn from(val: u8) -> Self {
-        PPUControl {
-            nametable_addr:   ((val & 0b11) as u16) << 10 | 0x2000,
-            vram_addr_inc:    if val.test_bit(2) { 32 } else { 1 },
-            spr_pattern_addr: if val.test_bit(3) { PATTERN_TABLE_SIZE } else { 0x0000 },
-            bg_pattern_addr:  if val.test_bit(4) { PATTERN_TABLE_SIZE } else { 0x0000 },
-            sprites_large:    if val.test_bit(5) { SPRITE_HEIGHT_LARGE } else { SPRITE_HEIGHT_SMALL },
-            // ppu_master_slave: val.test_bit(6),
-            nmi_enable:       val.test_bit(7),
-        }
-    }
-}
-
-impl Into<u8> for PPUControl {
-    fn into(self) -> u8 {
-        ((self.nametable_addr & 0xc00) >> 10) as u8
-        | ((self.vram_addr_inc >> 5) as u8)     << 2
-        | ((self.spr_pattern_addr >> 12) as u8) << 3
-        | ((self.bg_pattern_addr >> 12) as u8)  << 4
-        | ((self.sprites_large >> 4) as u8)     << 5
-        | /* (self.ppu_master_slave as u8) */0  << 6
-        | (self.nmi_enable as u8)               << 7
-    }
-}
-
-impl From<u8> for PPUMask {
-    fn from(val: u8) -> Self {
-        PPUMask {
-            grayscale:       val.test_bit(0),
-            bg_mask:         val.test_bit(1),
-            sprite_mask:    val.test_bit(2),
-            bg_enable:       val.test_bit(3),
-            sprites_enable:  val.test_bit(4),
-            emphasize_red:   val.test_bit(5),
-            emphasize_green: val.test_bit(6),
-            emphasize_blue:  val.test_bit(7),
-        }
-    }
-}
-
-impl Into<u8> for PPUMask {
-    fn into(self) -> u8 {
-        (self.grayscale as u8)
-        | (self.bg_mask as u8)         << 1
-        | (self.sprite_mask as u8)    << 2
-        | (self.bg_enable as u8)       << 3
-        | (self.sprites_enable as u8)  << 4
-        | (self.emphasize_red as u8)   << 5
-        | (self.emphasize_green as u8) << 6
-        | (self.emphasize_blue as u8)  << 7
-   }
-}
-
-impl Into<u8> for PPUStatus {
-    fn into(self) -> u8 {
-        (self.sprite_overflow as u8) << 5
-        | (self.sprite_0_hit as u8)  << 6
-        | (self.vblank as u8)        << 7
-   }
+/// Get the rgb color corresponding to the ppu color.
+fn as_rgb(color: u8) -> RGB8 {
+    let r = PALETTE_COLORS[3 * color as usize];
+    let g = PALETTE_COLORS[3 * color as usize + 1];
+    let b = PALETTE_COLORS[3 * color as usize + 2];
+    RGB8 { r, g, b }
 }
