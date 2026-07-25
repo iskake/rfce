@@ -59,7 +59,7 @@ rfce has support for the following mappers:
 
 These mappers (especially MMC1 and MMC3) account for a large number of first-party games.
 
-(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ games), so your mileage may vary.)
+(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ cartridges (incl. different regions, revisions, etc.)), so your mileage may vary.)
 
 ### Missing features of note
 
