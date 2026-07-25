@@ -2,6 +2,8 @@
 
 rfce is a Famicom / NES emulator written in rust.
 
+![Screenshot of rfce running and displaying the title screen of Kirby's Adventure (JP version)](img/ka.png)
+
 ## Mapper support
 
 See [support.md](support.md)
