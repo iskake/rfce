@@ -735,7 +735,7 @@ impl PPU {
                 if self.rendering_enabled() {
                     // TODO: two ppu fetches
 
-                    if self.cycle == 339 && self.scanline == 261 && self.frame % 2 == 1 {
+                    if self.cycle == 339 && self.scanline == PRE_RENDER_LINE && self.frame % 2 == 1 {
                         self.cycle = 340;
                     }
                 }
@@ -810,12 +810,12 @@ impl PPU {
 
     #[inline]
     fn get_next_pixel(&mut self, mem: &mut MemMap) -> RGB<u8> {
-        let x_scroll_fine = self.reg.scroll_x;
+        let scroll_x_fine = self.reg.scroll_x;
         let y = self.scanline;
         let x = self.cycle - 1;
 
-        let bg_color = ((((self.shift_reg_lo as u16) << x_scroll_fine) & 0x8000) >> 15)
-                          | ((((self.shift_reg_hi as u16) << x_scroll_fine) & 0x8000) >> 14);
+        let bg_color = ((((self.shift_reg_lo as u16) << scroll_x_fine) & 0x8000) >> 15)
+                          | ((((self.shift_reg_hi as u16) << scroll_x_fine) & 0x8000) >> 14);
 
         let mut spr_color = 0;
         let mut spr_in_front = false;
@@ -923,14 +923,17 @@ impl PPU {
         } else {
             // TODO: should it actually be v? Currently some bugs if so...
             let t = self.reg.t as usize;
-            let scroll_x = x_scroll_fine as usize | (t & 0b11111) << 3;
+
+            let scroll_x = ((t & 0b11111) << 3) | scroll_x_fine as usize;
             let tile_x = (x as usize + scroll_x) / TILE_SIZE_PIXELS;
 
-            // TODO: vertical scrolling
-            let scroll_y = ((t & 0b1111100000) >> 2) | ((t & 0x7000) >> 12);
-            let tile_y = (y as usize + scroll_y) / TILE_SIZE_PIXELS;
+            let scroll_y_fine = (t & 0x7000) >> 12;
+            let scroll_y = ((t & 0b1111100000) >> 2) | scroll_y_fine;
+            // Nametables are 240 pixels tall, so skip over two 'missing' tiles if we go above this
+            let delta_y = if (y as usize + scroll_y) > 239 { 16 } else { 0 };
+            let tile_y = (y as usize + delta_y + scroll_y) / TILE_SIZE_PIXELS;
 
-            let tile_attr = if (x_scroll_fine as u32 + (x & 0b111)) < 8 {
+            let tile_attr = if (scroll_x_fine as u32 + (x & 0b111)) < 8 {
                 self.prev_attribute_byte
             } else {
                 self.curr_attribute_byte
