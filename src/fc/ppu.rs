@@ -29,6 +29,9 @@ const SPRITE_WIDTH: usize = TILE_SIZE_PIXELS;
 const SPRITE_HEIGHT_SMALL: u8 = 8;
 const SPRITE_HEIGHT_LARGE: u8 = 16;
 
+const RENDERING_LINES: u32 = 240;
+const PRE_RENDER_LINE: u32 = 261;
+
 pub const SCANLINE_DURATION: u32 = 341;
 pub const FRAME_SCANLINES: u32 = 262;
 pub const PPU_FREQ: f64 = CPU_FREQ * 3.0;
@@ -210,7 +213,7 @@ impl PPU {
     }
 
     pub(crate) fn just_finished_rendering(&self) -> bool {
-        self.scanline == 240
+        self.scanline == RENDERING_LINES
     }
 
     pub(crate) fn oamdma(&self) -> u8 {
@@ -226,7 +229,7 @@ impl PPU {
             assert!(self.cycle < SCANLINE_DURATION);
             assert!(self.scanline < FRAME_SCANLINES);
 
-            if self.scanline <= 240 || self.scanline == 261 && self.rendering_enabled() {
+            if self.scanline <= RENDERING_LINES || self.scanline == PRE_RENDER_LINE && self.rendering_enabled() {
                 self.sprite_eval();
             }
             self.render(mem);
