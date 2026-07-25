@@ -22,7 +22,7 @@ rfce is a Famicom / NES emulator written in rust.
 ~ $ brew install sdl3
 ```
 
-On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), the `build-sdl3` feature can be enabled (requires `cmake`.)
+On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), either the `build-sdl3` or `build-sdl3-static` (for dynamic/static linking respectively) feature can be enabled (both require `cmake`.)
 
 ## Building
 

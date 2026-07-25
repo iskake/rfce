@@ -18,3 +18,4 @@ overflow-checks = false
 
 [features]
 build-sdl3 = ["sdl3/build-from-source"]
+build-sdl3-static = ["sdl3/build-from-source-static"]
