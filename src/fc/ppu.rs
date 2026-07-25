@@ -814,18 +814,23 @@ impl PPU {
         let y = self.scanline;
         let x = self.cycle - 1;
 
-        let bg_color = ((((self.shift_reg_lo as u16) << scroll_x_fine) & 0x8000) >> 15)
-                          | ((((self.shift_reg_hi as u16) << scroll_x_fine) & 0x8000) >> 14);
+        let bg_color = if x < 8 && !self.reg.mask.bg_mask {
+            0
+        } else {
+            ((((self.shift_reg_lo as u16) << scroll_x_fine) & 0x8000) >> 15) |
+            ((((self.shift_reg_hi as u16) << scroll_x_fine) & 0x8000) >> 14)
+        };
 
         let mut spr_color = 0;
         let mut spr_in_front = false;
         let mut found_sprite = None;
         for i in 0..8 {
-            let spr = self.oam_sys.sprites[i];
-
-            if spr.y != spr.x && spr.y != 255 && spr.y != 248 {
-                // info!("Sprite has non 255 value?? {spr:?} on scanline: {}", self.scanline);
+            if x < 8 && !self.reg.mask.sprite_mask {
+                // Note: this also skips sprite 0 hit when sprite 0 has non-bg pixels at x < 8
+                break;
             }
+
+            let spr = self.oam_sys.sprites[i];
 
             let spr_height = self.reg.control.sprites_large as u32;
 
@@ -850,10 +855,8 @@ impl PPU {
 
                 let tile_idx = if large_sprites {
                     if !is_second_sprite {
-                        // todo!("8x16 sprite tile 1")
                         spr.tile & 0xfe
                     } else {
-                        // todo!("8x16 sprite tile 2")
                         (spr.tile & 0xfe) | 1
                     }
                 } else {
@@ -1027,18 +1030,20 @@ impl PPU {
     }
 
     fn pal_idx_from_attr(&self, attr: u8, tile_x: usize, tile_y: usize) -> u8 {
+        // Nametable attribute structure:
+        // - top left:      attr & 0b00000011 >> 0;
+        // - top right:     attr & 0b00001100 >> 2;
+        // - bottom left:   attr & 0b00110000 >> 4;
+        // - bottom right:  attr & 0b11000000 >> 6;
+
         let dx = (tile_x / 2) & 0b1;
         let dy = (tile_y / 2) & 0b1;
         let delta = 2 * ((dy << 1) | dx);
 
-        // let top_left = attr & 0b11;
-        // let top_right = (attr & 0b1100)>> 2;
-        // let bottom_left = (attr & 0b110000)>> 4;
-        // let bottom_right = (attr & 0b11000000)>> 6;
-
         (attr & (0b11 << delta)) >> delta
     }
 
+    // Taken directly from https://www.nesdev.org/wiki/PPU_scrolling#Coarse_X_increment
     fn inc_hori(&mut self) -> () {
         let mut v = self.reg.v;
         if (v & 0x001f) == 31 {// if coarse X == 31
@@ -1050,6 +1055,7 @@ impl PPU {
         self.reg.v = v;
     }
 
+    // Taken directly from https://www.nesdev.org/wiki/PPU_scrolling#Y_increment
     fn inc_vert(&mut self) -> () {
         let mut v = self.reg.v;
         if (v & 0x7000) != 0x7000 {             // if fine Y < 7
@@ -1081,7 +1087,7 @@ fn as_rgb(color: u8) -> RGB8 {
 
 // TODO? make it possible to change this?
 const PALETTE_COLORS: [u8; 0x40 * 3] = [
-    // NOTE: the colors are from the default mesen color palette.
+    // NOTE: the colors are from the default Mesen color palette.
     0x66, 0x66, 0x66, 0x00, 0x2a, 0x88, 0x14, 0x12, 0xa7, 0x3b, 0x00, 0xa4, 0x5c, 0x00, 0x7e, 0x6e,
     0x00, 0x40, 0x6c, 0x06, 0x00, 0x56, 0x1d, 0x00, 0x33, 0x35, 0x00, 0x0b, 0x48, 0x00, 0x00, 0x52,
     0x00, 0x00, 0x4f, 0x08, 0x00, 0x40, 0x4d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1134,7 +1140,7 @@ struct PPUControl {
 struct PPUMask {
     grayscale: bool,
     bg_mask: bool,
-    sprites_mask: bool,
+    sprite_mask: bool,
     bg_enable: bool,
     sprites_enable: bool,
     emphasize_red: bool,
@@ -1208,7 +1214,7 @@ impl From<u8> for PPUMask {
         PPUMask {
             grayscale:       val.test_bit(0),
             bg_mask:         val.test_bit(1),
-            sprites_mask:    val.test_bit(2),
+            sprite_mask:    val.test_bit(2),
             bg_enable:       val.test_bit(3),
             sprites_enable:  val.test_bit(4),
             emphasize_red:   val.test_bit(5),
@@ -1222,7 +1228,7 @@ impl Into<u8> for PPUMask {
     fn into(self) -> u8 {
         (self.grayscale as u8)
         | (self.bg_mask as u8)         << 1
-        | (self.sprites_mask as u8)    << 2
+        | (self.sprite_mask as u8)    << 2
         | (self.bg_enable as u8)       << 3
         | (self.sprites_enable as u8)  << 4
         | (self.emphasize_red as u8)   << 5
