@@ -51,6 +51,7 @@ struct Registers {
 }
 
 pub struct MMC3Mapper {
+    battery: bool,
     prg_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
@@ -117,6 +118,7 @@ impl RealMapper for MMC3Mapper {
         let chr_ram = vec![0; chr_ram_size];
 
         MMC3Mapper {
+            battery,
             prg_rom,
             prg_ram,
             chr_rom,
@@ -287,6 +289,30 @@ impl MMC3Mapper {
 
     pub(crate) fn irq_un_trigger(&mut self) {
         self.irq_triggered = false;
+    }
+
+    pub(crate) fn replace_sram(&mut self, sram: Vec<u8>) -> Result<(), std::io::Error> {
+        if self.prg_ram.len() != sram.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "Size of save RAM is incorrect, expected {} got {}",
+                    self.prg_ram.len(),
+                    sram.len()
+                )
+            ));
+        }
+
+        self.prg_ram = sram;
+        Ok(())
+    }
+
+    pub(crate) fn sram(&self) -> &Vec<u8> {
+        &self.prg_ram
+    }
+
+    pub(crate) fn has_battery(&self) -> bool {
+        self.battery
     }
 }
 

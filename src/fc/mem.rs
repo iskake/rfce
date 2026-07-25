@@ -1,5 +1,8 @@
+use std::fs::File;
+use std::io::{Read, Write};
+
 use cart::NESFile;
-use log::warn;
+use log::{info, warn};
 use mapper::nrom::NROMMapper;
 use mapper::{Mapper, RealMapper};
 
@@ -297,5 +300,50 @@ impl MemMap {
             // FDS
             _ => {}
         };
+    }
+
+    pub(crate) fn read_sram_from_file(&mut self, save_path: &std::path::Path) -> Result<(), std::io::Error> {
+        if self.mapper_can_save() {
+            let mut buf = Vec::new();
+            let mut file = File::open(save_path)?;
+            file.read_to_end(&mut buf);
+
+            match self.mapper.as_mut() {
+                MapperImpl::MMC1(m) => m.replace_sram(buf)?,
+                MapperImpl::MMC3(m) => m.replace_sram(buf)?,
+                // MBC5
+                // MBC6
+                // FDS
+                _ => unreachable!(),
+            };
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn write_sram_to_file(&self, save_path: &std::path::Path) -> Result<(), std::io::Error>{
+        let sram = match self.mapper.as_ref() {
+            MapperImpl::MMC1(m) => Some(m.sram()),
+            MapperImpl::MMC3(m) => Some(m.sram()),
+            // MBC5
+            // MBC6
+            // FDS
+            _ => None,
+        };
+
+        if let Some(sram) = sram {
+            let mut file = File::create(save_path)?;
+            file.write_all(sram)?;
+            info!("Wrote save RAM to file: {save_path:?}");
+        }
+        Ok(())
+    }
+
+    fn mapper_can_save(&self) -> bool {
+        match self.mapper.as_ref() {
+            MapperImpl::MMC1(m) => m.has_battery(),
+            MapperImpl::MMC3(m) => m.has_battery(),
+            _ => false,
+        }
     }
 }

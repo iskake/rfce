@@ -7,6 +7,9 @@
 *.bin
 *.nes
 
+# Save files
+*.sav
+
 # Other files
 *.log
 *.pal

@@ -94,9 +94,8 @@ impl GUI {
     /// Create a new GUI, loading `filename` into a new emulator.
     pub fn from_file(sdl_context: Sdl, filename: &Path) -> GUI {
         let mut gui = GUI::new(sdl_context);
-        let fc = create_fc_from_file(filename).ok();
-        gui.fc = fc;
-        gui.state.curr_rom_path = filename.to_owned();
+        gui.load_rom(filename);
+        gui.load_savefile();
         gui
     }
 
@@ -106,11 +105,7 @@ impl GUI {
 
         loop {
             for event in event_pump.poll_iter() {
-                let quit_event = self.handle_event(event);
-
-                if quit_event {
-                    return Ok(());
-                }
+                self.handle_event(event);
             }
             if let Some(f) = &mut self.fc {
                 f.set_controller_values(self.state.joypad1, self.state.joypad2);
@@ -119,7 +114,31 @@ impl GUI {
             self.run_frame();
 
             if !self.state.continue_running {
+                self.save_savefile();
+
                 return Ok(());
+            }
+        }
+    }
+
+    fn load_savefile(&mut self) {
+        if let Some(fc) = &mut self.fc {
+            let save_path = get_save_path(&self.state.curr_rom_path);
+            info!("Loading save RAM file: {save_path:?}");
+
+            if let Err(e) = fc.load_save(&save_path) {
+                warn!("Failed when attempting to read save RAM: {e}")
+            }
+        }
+    }
+
+    fn save_savefile(&mut self) {
+        if let Some(fc) = &mut self.fc {
+            let save_path = get_save_path(&self.state.curr_rom_path);
+            info!("Saving save RAM file: {save_path:?}");
+
+            if let Err(e) = fc.save_save(&save_path) {
+                warn!("Failed when attempting to write save RAM: {e}")
             }
         }
     }
@@ -181,9 +200,9 @@ impl GUI {
     }
 
     /// Handle the given [Event]. Returns `true` if the event was [Event::Quit].
-    fn handle_event(&mut self, event: Event) -> bool {
+    fn handle_event(&mut self, event: Event) {
         match event {
-            Event::Quit { .. } => return true,
+            Event::Quit { .. } => self.state.continue_running = false,
             Event::KeyDown { keycode: Some(Keycode::C), .. } => self.state.curr_joypad_is_joy2 = !self.state.curr_joypad_is_joy2,
             // Joypad press
             Event::KeyDown { keycode: Some(Keycode::X),         .. } => self.curr_controller().a      = true,
@@ -243,11 +262,19 @@ impl GUI {
                 keycode: Some(Keycode::H),
                 ..
             } => {
+                info!("Hard reset");
+
+                if self.fc.is_some() {
+                    self.save_savefile();
+                }
+
                 if let Some(f) = &mut self.fc {
-                    info!("Hard reset");
+
                     if let Err(_) = f.reset_hard() {
                         warn!("Failed to hard reset: no rom loaded")
                     }
+
+                    self.load_savefile();
                 }
             }
             // Load ROM
@@ -259,7 +286,11 @@ impl GUI {
                     .add_filter(".NES ROM file", &["nes"])
                     .pick_file()
                 {
-                    self.load(&path);
+                    self.save_savefile();
+
+                    self.load_rom(&path);
+
+                    self.load_savefile();
                 }
             }
             // Screenshot
@@ -288,7 +319,6 @@ impl GUI {
             }
             _ => {}
         }
-        false
     }
 
     /// Get a reference to the the "current" contoller (based on `curr_joypad_is_joy2`)
@@ -306,9 +336,18 @@ impl GUI {
     }
 
     /// Create a new emulator with the given file
-    fn load(&mut self, filename: &Path) {
-        self.fc = create_fc_from_file(filename).ok();
-        self.state.curr_rom_path = filename.to_path_buf();
+    fn load_rom(&mut self, filename: &Path) {
+        info!("Loading .nes file: {filename:?}");
+        self.fc = match create_fc_from_file(filename) {
+            Err(e) => {
+                warn!("Failed to load ROM: {e}");
+                None
+            }
+            Ok(f) => {
+                self.state.curr_rom_path = filename.to_path_buf();
+                Some(f)
+            },
+        }
     }
 
     fn enable_fast_forward(&mut self) {
@@ -337,4 +376,10 @@ fn create_fc_from_file(filename: &Path) -> Result<Box<FC>, std::io::Error> {
     let mut fc = FC::from_file(filename)?;
     fc.init();
     Ok(fc)
+}
+
+fn get_save_path(rom_path: &Path) -> PathBuf {
+    let mut save_path = rom_path.to_path_buf();
+    save_path.set_extension("sav");
+    save_path
 }

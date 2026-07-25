@@ -18,7 +18,7 @@ fn main() -> Result<(), String> {
 
     if headless {
         if last_arg_is_nes_file {
-            info!("Starting headless debugger");
+            info!("Creating headless debugger");
 
             let filename = &args[args.len() - 1];
             let mut debugger = Debugger::new();
@@ -35,7 +35,7 @@ fn main() -> Result<(), String> {
             Ok(())
         }
     } else {
-        info!("Starting GUI");
+        info!("Creating GUI");
 
         let filename = last_arg_is_nes_file.then_some(&args[args.len() - 1]);
         run_gui(filename)
@@ -47,10 +47,11 @@ fn run_gui(filename: Option<&String>) -> Result<(), String> {
     let event_pump = sdl_context.event_pump().map_err(|e| e.to_string())?;
 
     let mut gui = if let Some(filename) = filename {
-        info!("Loading .nes file: {filename}");
-        GUI::from_file(sdl_context, Path::new(filename))
+        let rom_path = Path::new(filename);
+        info!("Starting GUI with ROM {rom_path:?}");
+        GUI::from_file(sdl_context, rom_path)
     } else {
-        info!("Starting without ROM");
+        info!("Starting GUI without ROM");
         GUI::new(sdl_context)
     };
 

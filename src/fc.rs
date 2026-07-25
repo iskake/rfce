@@ -102,4 +102,12 @@ impl FC {
     pub fn set_controller_values(&mut self, joy1: StandardControllerState, joy2: StandardControllerState) {
         self.cpu.mem.input.update_from_controller_state(joy1, joy2);
     }
+
+    pub fn load_save(&mut self, save_path: &Path) -> Result<(), std::io::Error> {
+        self.cpu.mem.read_sram_from_file(save_path)
+    }
+
+    pub fn save_save(&mut self, save_path: &Path) -> Result<(), std::io::Error> {
+        self.cpu.mem.write_sram_to_file(save_path)
+    }
 }
