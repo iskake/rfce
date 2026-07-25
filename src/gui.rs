@@ -184,25 +184,25 @@ impl GUI {
     fn handle_event(&mut self, event: Event) -> bool {
         match event {
             Event::Quit { .. } => return true,
-            Event::KeyDown { keycode: Some(Keycode::C), .. } => { self.state.curr_joypad_is_joy2 = !self.state.curr_joypad_is_joy2 },
+            Event::KeyDown { keycode: Some(Keycode::C), .. } => self.state.curr_joypad_is_joy2 = !self.state.curr_joypad_is_joy2,
             // Joypad press
-            Event::KeyDown { keycode: Some(Keycode::X),         .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.a      = true; },
-            Event::KeyDown { keycode: Some(Keycode::Z),         .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.b      = true; },
-            Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.select = true; },
-            Event::KeyDown { keycode: Some(Keycode::Return),    .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.start  = true; },
-            Event::KeyDown { keycode: Some(Keycode::Up),        .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.up     = true; },
-            Event::KeyDown { keycode: Some(Keycode::Down),      .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.down   = true; },
-            Event::KeyDown { keycode: Some(Keycode::Left),      .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.left   = true; },
-            Event::KeyDown { keycode: Some(Keycode::Right),     .. } => { let x = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; x.right  = true; },
+            Event::KeyDown { keycode: Some(Keycode::X),         .. } => self.curr_controller().a      = true,
+            Event::KeyDown { keycode: Some(Keycode::Z),         .. } => self.curr_controller().b      = true,
+            Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => self.curr_controller().select = true,
+            Event::KeyDown { keycode: Some(Keycode::Return),    .. } => self.curr_controller().start  = true,
+            Event::KeyDown { keycode: Some(Keycode::Up),        .. } => self.curr_controller().up     = true,
+            Event::KeyDown { keycode: Some(Keycode::Down),      .. } => self.curr_controller().down   = true,
+            Event::KeyDown { keycode: Some(Keycode::Left),      .. } => self.curr_controller().left   = true,
+            Event::KeyDown { keycode: Some(Keycode::Right),     .. } => self.curr_controller().right  = true,
             // Joypad release
-            Event::KeyUp   { keycode: Some(Keycode::X),         .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.a      = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Z),         .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.b      = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Backspace), .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.select = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Return),    .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.start  = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Up),        .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.up     = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Down),      .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.down   = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Left),      .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.left   = false; },
-            Event::KeyUp   { keycode: Some(Keycode::Right),     .. } => { let j = if self.state.curr_joypad_is_joy2 { &mut self.state.joypad2 } else { &mut self.state.joypad1 }; j.right  = false; },
+            Event::KeyUp   { keycode: Some(Keycode::X),         .. } => self.curr_controller().a      = false,
+            Event::KeyUp   { keycode: Some(Keycode::Z),         .. } => self.curr_controller().b      = false,
+            Event::KeyUp   { keycode: Some(Keycode::Backspace), .. } => self.curr_controller().select = false,
+            Event::KeyUp   { keycode: Some(Keycode::Return),    .. } => self.curr_controller().start  = false,
+            Event::KeyUp   { keycode: Some(Keycode::Up),        .. } => self.curr_controller().up     = false,
+            Event::KeyUp   { keycode: Some(Keycode::Down),      .. } => self.curr_controller().down   = false,
+            Event::KeyUp   { keycode: Some(Keycode::Left),      .. } => self.curr_controller().left   = false,
+            Event::KeyUp   { keycode: Some(Keycode::Right),     .. } => self.curr_controller().right  = false,
             // Scale
             Event::KeyDown { keycode: Some(Keycode::_1), .. } => self.set_scale(1),
             Event::KeyDown { keycode: Some(Keycode::_2), .. } => self.set_scale(2),
@@ -289,6 +289,15 @@ impl GUI {
             _ => {}
         }
         false
+    }
+
+    /// Get a reference to the the "current" contoller (based on `curr_joypad_is_joy2`)
+    fn curr_controller(&mut self) -> &mut StandardControllerState {
+        if self.state.curr_joypad_is_joy2 {
+            &mut self.state.joypad2
+        } else {
+            &mut self.state.joypad1
+        }
     }
 
     /// Pause emulator
