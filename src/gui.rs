@@ -25,14 +25,16 @@ struct GUIState {
     emulator_60fps: bool,
     fast_forward: bool,
     frame_advancing: bool,
-    // debugging_view: bool,
     curr_rom_path: PathBuf,
     curr_joypad_is_joy2: bool,
     joypad1: StandardControllerState,
     joypad2: StandardControllerState,
-    ui_show_error: bool,
-    ui_last_error: Option<String>,
-    ui_show_error_timer: std::time::Instant,
+    // TODO: actual debugging in the GUI
+    // debugging_view: bool,
+    // TODO? actually show errors in the UI?
+    // ui_show_error: bool,
+    // ui_last_error: Option<String>,
+    // ui_show_error_timer: std::time::Instant,
 }
 
 impl GUI {
@@ -71,14 +73,14 @@ impl GUI {
             emulator_60fps: false,
             fast_forward: false,
             frame_advancing: false,
-            // debugging_view: false,
             curr_rom_path: PathBuf::new(),
             curr_joypad_is_joy2: false,
             joypad1: StandardControllerState::default(),
             joypad2: StandardControllerState::default(),
-            ui_show_error: false,
-            ui_last_error: None,
-            ui_show_error_timer: std::time::Instant::now(),
+            // debugging_view: false,
+            // ui_show_error: false,
+            // ui_last_error: None,
+            // ui_show_error_timer: std::time::Instant::now(),
         };
 
         GUI {

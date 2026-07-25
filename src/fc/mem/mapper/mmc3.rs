@@ -54,7 +54,7 @@ pub struct MMC3Mapper {
     prg_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
-    chr_ram: Vec<u8>,
+    _chr_ram: Vec<u8>,  // ?
     nametable_arrange: NametableArrangement,
     irq_enabled: bool,
     prg_bank_mode: PRGBankMode,
@@ -120,7 +120,7 @@ impl RealMapper for MMC3Mapper {
             prg_rom,
             prg_ram,
             chr_rom,
-            chr_ram,
+            _chr_ram: chr_ram,
             nametable_arrange,
             irq_enabled: false,
             prg_bank_mode: Swap8000,
