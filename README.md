@@ -68,6 +68,7 @@ The following is an incomplete list of features that are not (yet) implemented.
 - Audio
 - Famicom Disk System emulation
 - Any and all other mappers
+- PAL game support (games _may_ still run, but are likely going to be faster than normal due to running at ~60hz vs. ~50hz)
 
 ## Useful sources
 
