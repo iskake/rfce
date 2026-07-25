@@ -306,7 +306,7 @@ impl MemMap {
         if self.mapper_can_save() {
             let mut buf = Vec::new();
             let mut file = File::open(save_path)?;
-            file.read_to_end(&mut buf);
+            file.read_to_end(&mut buf)?;
 
             match self.mapper.as_mut() {
                 MapperImpl::MMC1(m) => m.replace_sram(buf)?,
