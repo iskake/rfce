@@ -1,7 +1,7 @@
 use inst::*;
 use log::*;
 
-use crate::bits::{as_address, Addr, Bitwise};
+use crate::bits::{Addr, Bitwise, as_address};
 use crate::fc::mem::*;
 
 use super::PPU;
@@ -102,10 +102,7 @@ impl CPU {
 
     pub fn print_state(&self) -> () {
         println!("CPU STATE:");
-        println!(
-            "  a: {:02x}, x: {:02x}, y: {:02x}",
-            self.reg.a, self.reg.x, self.reg.y
-        );
+        println!("  a: {:02x}, x: {:02x}, y: {:02x}", self.reg.a, self.reg.x, self.reg.y);
         let p: u8 = self.reg.p.into();
         println!("  p: {:02x} ({:08b})", p, p);
         println!("  sp:{:02x} pc:{:04x}", self.reg.sp, self.reg.pc);
@@ -122,7 +119,8 @@ impl CPU {
         let operand_rel = (self.reg.pc + 2).wrapping_add_signed((operand_u8 as i8).into());
 
         println!(
-            "-> {}",
+            "[ ${:04x} ] -> {}",
+            self.reg.pc,
             inst.to_string()
                 .replace("_b", &format!("{operand_u8:02x}"))
                 .replace("_w", &format!("{operand_u16:04x}"))
@@ -493,7 +491,7 @@ impl CPU {
     /// - Ind: `5` for both x/y
     pub fn operand_write_inc(&mut self, am: AddrMode, val: u8) {
         match am {
-            AddrMode::ZP(ir) => self.zp_write_inc(val, ir), // +2(+1 x/y)
+            AddrMode::ZP(ir) => self.zp_write_inc(val, ir),   // +2(+1 x/y)
             AddrMode::Abs(ir) => self.abs_write_inc(val, ir), // +3
             AddrMode::Ind(ir) => self.ind_write_inc(val, ir), // +5
             AddrMode::Acc => unreachable!(),
@@ -634,9 +632,8 @@ impl CPU {
             self.reg.nmi = false;
         }
 
-        // IRQ handling 
+        // IRQ handling
         if !self.reg.p.i && self.mem.irq_triggered() {
-            // panic!("irq");
             self.handle_irq();
             self.mem.irq_un_trigger();
         } else {
