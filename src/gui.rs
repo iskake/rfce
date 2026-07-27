@@ -25,6 +25,7 @@ struct GUIState {
     emulator_60fps: bool,
     fast_forward: bool,
     frame_advancing: bool,
+    holding_ctrl_key: bool,
     curr_rom_path: PathBuf,
     curr_joypad_is_joy2: bool,
     joypad1: StandardControllerState,
@@ -42,11 +43,7 @@ impl GUI {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
-            .window(
-                "rfce",
-                ppu::PICTURE_WIDTH as u32 * 2,
-                ppu::PICTURE_HEIGHT as u32 * 2,
-            )
+            .window("rfce", ppu::PICTURE_WIDTH as u32 * 2, ppu::PICTURE_HEIGHT as u32 * 2)
             .high_pixel_density()
             .position_centered()
             .resizable()
@@ -73,6 +70,7 @@ impl GUI {
             emulator_60fps: false,
             fast_forward: false,
             frame_advancing: false,
+            holding_ctrl_key: false,
             curr_rom_path: PathBuf::new(),
             curr_joypad_is_joy2: false,
             joypad1: StandardControllerState::default(),
@@ -185,26 +183,24 @@ impl GUI {
         let (window_w, window_h) = self.canvas.window().size_in_pixels();
         let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
 
-        self.canvas
-            .copy(&self.screen_texture, None, Some(rect))
-            .unwrap();
+        self.canvas.copy(&self.screen_texture, None, Some(rect)).unwrap();
         self.canvas.present();
 
-        debug!(
-            "Paused for: {:.2?} (f:{:?})",
-            frame_time.checked_sub(delta),
-            frame_time
-        );
+        debug!("Paused for: {:.2?} (f:{:?})", frame_time.checked_sub(delta), frame_time);
         debug!("Frame took: {:?}", frame_start.elapsed());
         debug!("(Pre-sleep: {:?})", delta);
     }
 
     /// Handle the given [Event]. Returns `true` if the event was [Event::Quit].
+    #[rustfmt::skip]
     fn handle_event(&mut self, event: Event) {
         match event {
             Event::Quit { .. } => self.state.continue_running = false,
+            Event::KeyDown { keycode: Some(Keycode::LCtrl), .. } => self.state.holding_ctrl_key = true,
+            Event::KeyUp   { keycode: Some(Keycode::LCtrl), .. } => self.state.holding_ctrl_key = false,
+            // Joypad
             Event::KeyDown { keycode: Some(Keycode::C), .. } => self.state.curr_joypad_is_joy2 = !self.state.curr_joypad_is_joy2,
-            // Joypad press
+            // (press)
             Event::KeyDown { keycode: Some(Keycode::X),         .. } => self.curr_controller().a      = true,
             Event::KeyDown { keycode: Some(Keycode::Z),         .. } => self.curr_controller().b      = true,
             Event::KeyDown { keycode: Some(Keycode::Backspace), .. } => self.curr_controller().select = true,
@@ -213,7 +209,7 @@ impl GUI {
             Event::KeyDown { keycode: Some(Keycode::Down),      .. } => self.curr_controller().down   = true,
             Event::KeyDown { keycode: Some(Keycode::Left),      .. } => self.curr_controller().left   = true,
             Event::KeyDown { keycode: Some(Keycode::Right),     .. } => self.curr_controller().right  = true,
-            // Joypad release
+            // (release)
             Event::KeyUp   { keycode: Some(Keycode::X),         .. } => self.curr_controller().a      = false,
             Event::KeyUp   { keycode: Some(Keycode::Z),         .. } => self.curr_controller().b      = false,
             Event::KeyUp   { keycode: Some(Keycode::Backspace), .. } => self.curr_controller().select = false,
@@ -223,45 +219,31 @@ impl GUI {
             Event::KeyUp   { keycode: Some(Keycode::Left),      .. } => self.curr_controller().left   = false,
             Event::KeyUp   { keycode: Some(Keycode::Right),     .. } => self.curr_controller().right  = false,
             // Scale
-            Event::KeyDown { keycode: Some(Keycode::_1), .. } => self.set_scale(1),
-            Event::KeyDown { keycode: Some(Keycode::_2), .. } => self.set_scale(2),
-            Event::KeyDown { keycode: Some(Keycode::_3), .. } => self.set_scale(3),
-            Event::KeyDown { keycode: Some(Keycode::_4), .. } => self.set_scale(4),
-            Event::KeyDown { keycode: Some(Keycode::_5), .. } => self.set_scale(5),
-            // Pausing
-            Event::KeyDown {
-                keycode: Some(Keycode::Escape | Keycode::P),
-                ..
-            } => self.pause_emulation(),
-            Event::KeyDown {
-                keycode: Some(Keycode::Tab),
-                ..
-            } => self.enable_fast_forward(),
-            Event::KeyUp {
-                keycode: Some(Keycode::Tab),
-                ..
-            } => self.disable_fast_forward(),
-            Event::KeyDown {
-                keycode: Some(Keycode::RightBracket),
-                ..
-            } => {
+            Event::KeyDown { keycode: Some(Keycode::_1), .. } => if self.state.holding_ctrl_key { self.set_scale(1); },
+            Event::KeyDown { keycode: Some(Keycode::_2), .. } => if self.state.holding_ctrl_key { self.set_scale(2); },
+            Event::KeyDown { keycode: Some(Keycode::_3), .. } => if self.state.holding_ctrl_key { self.set_scale(3); },
+            Event::KeyDown { keycode: Some(Keycode::_4), .. } => if self.state.holding_ctrl_key { self.set_scale(4); },
+            Event::KeyDown { keycode: Some(Keycode::_5), .. } => if self.state.holding_ctrl_key { self.set_scale(5); },
+            // Emulator state
+            Event::KeyDown { keycode: Some(Keycode::Tab), .. } => self.enable_fast_forward(),
+            Event::KeyUp   { keycode: Some(Keycode::Tab), .. } => self.disable_fast_forward(),
+            Event::KeyDown { keycode: Some(Keycode::Escape | Keycode::P), .. } => self.pause_emulation(),
+            Event::KeyDown { keycode: Some(Keycode::RightBracket), .. } => {
                 self.state.emulator_paused = false;
                 self.state.frame_advancing = true;
             }
             // Resets
-            Event::KeyDown {
-                keycode: Some(Keycode::R),
-                ..
-            } => {
-                if let Some(f) = &mut self.fc {
+            Event::KeyDown { keycode: Some(Keycode::R), .. } => {
+                if let Some(f) = &mut self.fc && self.state.holding_ctrl_key {
                     info!("Soft reset");
                     f.reset();
                 }
             }
-            Event::KeyDown {
-                keycode: Some(Keycode::H),
-                ..
-            } => {
+            Event::KeyDown { keycode: Some(Keycode::H), .. } => {
+                if !self.state.holding_ctrl_key {
+                    return;
+                }
+
                 info!("Hard reset");
 
                 if self.fc.is_some() {
@@ -278,10 +260,7 @@ impl GUI {
                 }
             }
             // Load ROM
-            Event::KeyDown {
-                keycode: Some(Keycode::O),
-                ..
-            } => {
+            Event::KeyDown { keycode: Some(Keycode::O), .. } => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter(".NES ROM file", &["nes"])
                     .pick_file()
@@ -294,10 +273,7 @@ impl GUI {
                 }
             }
             // Screenshot
-            Event::KeyDown {
-                keycode: Some(Keycode::PrintScreen),
-                ..
-            } => {
+            Event::KeyDown { keycode: Some(Keycode::PrintScreen), .. } => {
                 if let Some(fc) = &mut self.fc {
                     let width = ppu::PICTURE_WIDTH as u32;
                     let height = ppu::PICTURE_HEIGHT as u32;
@@ -346,7 +322,7 @@ impl GUI {
             Ok(f) => {
                 self.state.curr_rom_path = filename.to_path_buf();
                 Some(f)
-            },
+            }
         }
     }
 
@@ -360,7 +336,9 @@ impl GUI {
 
     fn set_scale(&mut self, scale: u32) {
         let window = self.canvas.window_mut();
-        window.set_size(ppu::PICTURE_WIDTH as u32 * scale, ppu::PICTURE_HEIGHT as u32 * scale).unwrap();
+        window
+            .set_size(ppu::PICTURE_WIDTH as u32 * scale, ppu::PICTURE_HEIGHT as u32 * scale)
+            .unwrap();
     }
 }
 
