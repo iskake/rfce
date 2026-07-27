@@ -22,7 +22,7 @@ rfce is a Famicom / NES emulator written in rust.
 ~ $ brew install sdl3
 ```
 
-On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), either the `build-sdl3` or `build-sdl3-static` (for dynamic/static linking respectively) feature can be enabled (both require `cmake`.)
+On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), either of the `build-sdl3` or `build-sdl3-static` (for dynamic/static linking respectively) features can be enabled (both require `cmake`.)
 
 ## Building
 
@@ -59,16 +59,16 @@ rfce has support for the following mappers:
 
 These mappers (especially MMC1 and MMC3) account for a large number of first-party games.
 
-(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ cartridges (incl. different regions, revisions, etc.)), so your mileage may vary.)
+(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ cartridges incl. different regions and revisions), so your mileage may vary.)
 
 ### Missing features of note
 
 The following is an incomplete list of features that are not (yet) implemented.
 
-- Audio
+- Audio (APU & SDL audio output)
 - Famicom Disk System emulation
 - Any and all other mappers
-- PAL game support (games _may_ still run, but are likely going to be faster than normal due to running at ~60hz vs. ~50hz)
+- PAL game support (games _may_ still run, but are likely going to be faster than normal due to running at ~60hz instead of the usual ~50hz)
 
 ## Useful sources
 
