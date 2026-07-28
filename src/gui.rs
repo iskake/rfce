@@ -7,6 +7,7 @@ use sdl3::{
     keyboard::Keycode,
     pixels::PixelFormat,
     render::{Canvas, FRect, Texture},
+    sys::timer::SDL_DelayPrecise,
     video::Window,
 };
 
@@ -23,6 +24,7 @@ struct GUIState {
     continue_running: bool,
     emulator_paused: bool,
     emulator_60fps: bool,
+    emulator_fps_changed: bool,
     fast_forward: bool,
     frame_advancing: bool,
     holding_ctrl_key: bool,
@@ -68,6 +70,7 @@ impl GUI {
             continue_running: true,
             emulator_paused: false,
             emulator_60fps: false,
+            emulator_fps_changed: false,
             fast_forward: false,
             frame_advancing: false,
             holding_ctrl_key: false,
@@ -101,7 +104,12 @@ impl GUI {
     pub fn run(&mut self, mut event_pump: EventPump) -> Result<(), sdl3::Error> {
         info!("Starting GUI run loop");
 
+        let mut frame_duration = (1_000_000_000.0 / ppu::FRAMERATE) as u32;
+
         loop {
+            // Must be the very first thing to happen in the loop
+            let frame_start = std::time::Instant::now();
+
             for event in event_pump.poll_iter() {
                 self.handle_event(event);
             }
@@ -109,12 +117,34 @@ impl GUI {
                 f.set_controller_values(self.state.joypad1, self.state.joypad2);
             }
 
-            self.run_frame();
-
             if !self.state.continue_running {
                 self.save_savefile();
 
                 return Ok(());
+            }
+
+            self.run_frame();
+
+            if self.state.fast_forward {
+                continue;
+            }
+
+            if self.state.emulator_fps_changed {
+                frame_duration = if self.state.emulator_60fps {
+                    (1_000_000_000.0 / 60.0) as u32
+                } else {
+                    (1_000_000_000.0 / ppu::FRAMERATE) as u32
+                };
+            }
+
+            let frame_time = std::time::Duration::new(0, frame_duration);
+            let delta = frame_start.elapsed();
+            if let Some(time) = frame_time.checked_sub(delta) {
+                unsafe {
+                    // More precise timing than `std::thread::sleep(time)`
+                    // Must be the very last thing to happen in the loop
+                    SDL_DelayPrecise(time.as_nanos() as u64);
+                }
             }
         }
     }
@@ -143,8 +173,6 @@ impl GUI {
 
     /// Run the emulator for one frame (~16.6ms).
     fn run_frame(&mut self) {
-        let frame_start = std::time::Instant::now();
-
         // Run the emulator until it's finished rendering (hits scanline 240)
         if let Some(fc) = &mut self.fc {
             if !self.state.emulator_paused {
@@ -165,30 +193,11 @@ impl GUI {
             self.state.emulator_paused = true;
         }
 
-        let divider = if self.state.emulator_60fps {
-            60.0
-        } else {
-            crate::fc::ppu::FRAMERATE
-        };
-        let frame_duration = (1_000_000_000.0 / divider) as u32;
-
-        let frame_time = std::time::Duration::new(0, frame_duration);
-        let delta = frame_start.elapsed();
-        if !self.state.fast_forward
-            && let Some(time) = frame_time.checked_sub(delta)
-        {
-            ::std::thread::sleep(time);
-        }
-
         let (window_w, window_h) = self.canvas.window().size_in_pixels();
         let rect = FRect::new(0.0, 0.0, window_w as f32, window_h as f32);
 
         self.canvas.copy(&self.screen_texture, None, Some(rect)).unwrap();
         self.canvas.present();
-
-        debug!("Paused for: {:.2?} (f:{:?})", frame_time.checked_sub(delta), frame_time);
-        debug!("Frame took: {:?}", frame_start.elapsed());
-        debug!("(Pre-sleep: {:?})", delta);
     }
 
     /// Handle the given [Event]. Returns `true` if the event was [Event::Quit].
