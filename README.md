@@ -72,5 +72,5 @@ The following is an incomplete list of features that are not (yet) implemented.
 
 ## Useful sources
 
-- The [Nesdev Wiki](https://www.nesdev.org/wiki/Nesdev_Wiki)
-- The [Mesen emulator](https://www.github.com/SourMesen/Mesen2). It's extensive debugging capabilities are especially useful!
+- [Nesdev.org](https://www.nesdev.org/) (especially the [Nesdev Wiki](https://www.nesdev.org/wiki/Nesdev_Wiki)) contains essentially everything there is to know about the Famicom and NES.
+- The [Mesen emulator](https://www.github.com/nesdev-org/MesenCE). It's high accuracy and extensive debugging capabilities are especially useful!
