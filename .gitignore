@@ -6,6 +6,7 @@
 *.s
 *.bin
 *.nes
+*.fds
 
 # Save files
 *.sav
