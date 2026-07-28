@@ -154,7 +154,6 @@ impl Memory for MapperImpl {
 
 pub struct MemMap {
     ram: [u8; 0x800],
-    // ...  // TODO: apu, ...
     pub input: Controller,
     pub mapper: Box<MapperImpl>,
 }
@@ -164,10 +163,8 @@ impl Memory for MemMap {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize],
             0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize],
-            0x4000..=0x4015 => 0xff, // TODO: apu registers
             0x4016          => self.input.read_joy1(), // Joystick 1 data
             0x4017          => self.input.read_joy2(), // Joystick 2 data
-            0x4018..=0x401f => 0xff, // APU test mode & unused IRQ timer
             0x4020..=0xffff => self.mapper.read(addr),
             _ => unreachable!("Attempted to read PPU MMIO (address ${:04x})", addr),
         }
@@ -177,10 +174,7 @@ impl Memory for MemMap {
         match addr {
             0x0000..=0x07ff => self.ram[addr as usize] = val,
             0x0800..=0x1fff => self.ram[(addr & 0x7ff) as usize] = val,
-            0x4000..=0x4015 => (), // TODO: apu registers
             0x4016          => self.input.write(val), // Joystick strobe
-            0x4017          => (), // TODO: apu frame counter control
-            0x4018..=0x401f => (), // APU test mode & unused IRQ timer
             0x4020..=0xffff => self.mapper.write(addr, val),
             _ => unreachable!("Attempted to read PPU MMIO (address ${:04x})", addr),
         };

@@ -10,6 +10,7 @@ use crate::fc::ppu::*;
 
 pub mod cpu;
 pub mod ppu;
+pub mod apu;
 pub mod mem;
 pub mod dbg;
 pub mod input;
@@ -30,7 +31,7 @@ pub struct FC {
 impl FC {
     pub fn new() -> FC {
         FC {
-            cpu: CPU::new(MemMap::empty(), PPU::new()),
+            cpu: CPU::new(MemMap::empty()),
             cart: None
         }
     }
@@ -39,8 +40,7 @@ impl FC {
         let nesfile = NESFile::from_file(filename)?;
         let mem = MemMap::from_nesfile(&nesfile)?;
 
-        let ppu = PPU::new();
-        let cpu = CPU::new(mem, ppu);
+        let cpu = CPU::new(mem);
         Ok(Box::new(FC { cpu, cart: Some(nesfile) }))
     }
 
@@ -59,8 +59,7 @@ impl FC {
             Some(nesfile) => {
                 let mem = MemMap::from_nesfile(&nesfile)?;
 
-                let ppu = PPU::new();
-                let cpu = CPU::new(mem, ppu);
+                let cpu = CPU::new(mem);
                 // self.ppu = ppu;
                 self.cpu = cpu;
                 self.init();

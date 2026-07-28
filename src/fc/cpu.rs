@@ -2,6 +2,7 @@ use inst::*;
 use log::*;
 
 use crate::bits::{Addr, Bitwise, as_address};
+use crate::fc::apu::APU;
 use crate::fc::mem::*;
 
 use super::PPU;
@@ -87,15 +88,17 @@ pub struct CPU {
     reg: Registers,
     pub mem: MemMap,
     pub ppu: PPU,
+    pub apu: APU,
     cycles: u64,
 }
 
 impl CPU {
-    pub fn new(mem: MemMap, ppu: PPU) -> CPU {
+    pub fn new(mem: MemMap) -> CPU {
         CPU {
             reg: Registers::new(),
             mem,
-            ppu,
+            ppu: PPU::new(),
+            apu: APU::new(),
             cycles: 0,
         }
     }
@@ -217,11 +220,15 @@ impl CPU {
     pub fn cycle(&mut self) -> () {
         self.cycles += 1;
         self.ppu.cycle(&mut self.mem, self.cycles as usize);
+        self.apu.cycle();
     }
 
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
             0x2000..=0x3fff => self.ppu.read_mmio((addr & 0x7) + 0x2000, &mut self.mem),
+            0x4000..=0x4014 => 0xff, // TODO: open bus read
+            0x4015          => self.apu.read_addr(addr),
+            0x4018..=0x401f => 0xff, // TODO: open bus read? (APU test mode & unused IRQ timer)
             _ => self.mem.read(addr),
         }
     }
@@ -230,6 +237,9 @@ impl CPU {
     fn mem_read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr & 0x7) + 0x2000),
+            0x4000..=0x4014 => 0xff, // TODO: open bus read
+            0x4015          => self.apu.read_addr(addr),
+            0x4018..=0x401f => 0xff, // TODO: open bus read? (APU test mode & unused IRQ timer)
             _ => self.mem.read_no_sideeffect(addr),
         }
     }
@@ -241,6 +251,9 @@ impl CPU {
                 self.ppu.write_oamdma(val);
                 self.reg.dma = true
             }
+            0x4000..=0x4015 => self.apu.write_addr(addr, val),
+            0x4017          => self.apu.write_addr(addr, val),
+            0x4018..=0x401f => (), // APU test mode & unused IRQ timer
             _ => self.mem.write(addr, val),
         };
     }
