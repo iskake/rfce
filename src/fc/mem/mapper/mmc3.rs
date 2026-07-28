@@ -421,10 +421,13 @@ impl Mapper for MMC3Mapper {
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         let banks = self.prg_rom.len() / PRG_BANK_SIZE;
         match addr {
+            0x4020..=0x5fff => {
+                info!("Open bus read");
+                0xff    // TODO: open bus read
+            }
             0x6000..=0x7fff => {
                 // "8KB switchable RAM bank (optional)"
-
-                if self.reg.prg_ram_enabled {
+                if self.reg.prg_ram_enabled && self.prg_ram.len() > 0 {
                     self.prg_ram[(addr - 0x6000) as usize]
                 } else {
                     // TODO: should read open bus

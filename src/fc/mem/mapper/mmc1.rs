@@ -330,9 +330,14 @@ impl Mapper for MMC1Mapper {
         let banks = self.prg_rom.len() / CHR_BANK_SIZE;
 
         match addr {
-            // TODO: handle writes when no ram.
+            0x4020..=0x5fff => 0xff, // TODO: open bus read
             0x6000..=0x7fff => {
                 // "8KB PRG-RAM bank (optional)"
+                if self.prg_ram.len() == 0 {
+                    info!("Open bus read");
+                    return 0xff;     // TODO: open bus read
+                }
+
                 self.prg_ram[(addr - 0x6000) as usize]
             },
             0x8000..=0xbfff => {

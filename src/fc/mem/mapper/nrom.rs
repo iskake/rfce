@@ -78,7 +78,9 @@ impl Memory for NROMMapper {
         match addr {
             0x6000..=0x7fff => {
                 // TODO: handle mirroring/no ram
-                self.prg_ram[(addr - 0x6000) as usize] = val;
+                if self.prg_ram.len() > 0 {
+                    self.prg_ram[(addr - 0x6000) as usize] = val;
+                }
             }
             _ => (),
         }
@@ -107,9 +109,17 @@ impl Mapper for NROMMapper {
 
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
+            0x4020..=0x5fff => {
+                info!("Open bus read");
+                0xff    // TODO: open bus read
+            }
             0x6000..=0x7fff => {
                 // PRG RAM
-                // TODO: handle mirroring/no ram
+                if self.prg_ram.len() == 0 {
+                    info!("Open bus read");
+                    return 0xff;    // TODO: open bus read
+                }
+
                 self.prg_ram[(addr - 0x6000) as usize]
             }
             0x8000..=0xbfff => {
