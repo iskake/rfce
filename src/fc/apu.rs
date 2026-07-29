@@ -139,9 +139,12 @@ struct NoiseChannel {
     envelope_const_vol: bool,
     length_counter_halt: bool,
     mode: bool,
-    period: u8,
+    period: u16,
+    period_shift: u16,
     length_counter_reload_val: u8,
 }
+
+const NOISE_PERIOD_VALUES: [u16; 16] = [ 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068 ];
 
 impl NoiseChannel {
     fn new() -> NoiseChannel {
@@ -150,49 +153,118 @@ impl NoiseChannel {
             envelope_const_vol: false,
             length_counter_halt: false,
             mode: false,
-            period: 0,
+            period: NOISE_PERIOD_VALUES[0], // ?
+            period_shift: 0x0000,           // ?
             length_counter_reload_val: 0,
         }
     }
 
     fn write_c(&mut self, val: u8) {
-        todo!()
+        // Length counter halt, constant volume/envelope flag, and volume/envelope divider period
+        self.length_counter_halt     = val & 0b0010_0000 != 0;
+        self.envelope_const_vol      = val & 0b0001_0000 != 0;
+        self.envelope_vol_div_period = val & 0b0000_1111;
+
+        debug!("Wrote {:02x} to APU NOISE $400c (len counter halt, ...)", val);
     }
 
     fn write_e(&mut self, val: u8) {
-        todo!()
+        // Mode and period
+        self.mode   = val & 0b1000_0000 != 0;
+        self.period = NOISE_PERIOD_VALUES[val as usize & 0b0000_1111];
+
+        debug!("Wrote {:02x} to APU NOISE $400e (mode, period)", val);
     }
 
     fn write_f(&mut self, val: u8) {
-        todo!()
+        // Length counter (re)load and envelope restart
+        self.length_counter_reload_val = (val & 0b1111_1000) >> 3;
+
+        // TODO: "envelope restart"
+
+        debug!("Wrote {:02x} to APU NOISE $400f (length counter load)", val);
     }
 }
 
 struct DMC {
-
+    irq_enabled: bool,
+    loop_flag: bool,
+    period: u16,
+    output_level: u8,
+    sample_address: u16,
+    sample_length: u16
 }
+
+const DMC_RATE_VALUES: [u16; 16] = [ 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106,  84,  72,  54 ];
 
 impl DMC {
     fn new() -> DMC {
         DMC {
-
+            irq_enabled: false,
+            loop_flag: false,
+            period: DMC_RATE_VALUES[0], // ?
+            output_level: 0,
+            sample_address: 0xc000,
+            sample_length: 1, // ?
         }
     }
 
     fn write_0(&mut self, val: u8) {
-        todo!()
+        // Flags and rate
+        self.irq_enabled = val & 0b1000_0000 != 0;
+        self.loop_flag   = val & 0b0100_0000 != 0;
+        self.period      = DMC_RATE_VALUES[val as usize & 0b0000_1111];
+
+        debug!("Wrote {:02x} to APU DMC $4010 (irq, flags, rate)", val);
     }
 
     fn write_1(&mut self, val: u8) {
-        todo!()
+        // Direct load
+        self.output_level = val & 0b0111_1111;
+
+        // TODO: "If the timer is outputting a clock at the same time, the output level is occasionally not changed properly."
+
+        debug!("Wrote {:02x} to APU DMC $4011 (direct load)", val);
     }
 
     fn write_2(&mut self, val: u8) {
-        todo!()
+        self.sample_address = 0xc000 | ((val as u16) << 6);
+
+        debug!("Wrote {:02x} to APU DMC $4012 (sample address)", val);
     }
 
     fn write_3(&mut self, val: u8) {
-        todo!()
+        self.sample_length = ((val as u16) << 4) | 1;
+
+        debug!("Wrote {:02x} to APU DMC $4013 (sample length)", val);
+    }
+}
+
+struct FrameCounter {
+    mode_5_step: bool,
+    irq_enable: bool
+}
+
+impl FrameCounter {
+    fn new() -> FrameCounter {
+        FrameCounter {
+            mode_5_step: false, // ?
+            irq_enable: true,   // ?
+        }
+    }
+
+    fn write_frame_counter(&mut self, val: u8) {
+        // Set mode and interrupt
+        self.mode_5_step = val & 0b1000_0000 != 0;
+
+        // TODO? "If set, the frame interrupt flag is cleared, otherwise it is unaffected"
+        self.irq_enable = val & 0b0100_0000 == 0;
+
+        // TODO: Side effects:
+        //   "After 3 or 4 CPU clock cycles*, the timer is reset."
+        //     "* If the write occurs during an APU cycle, the effects occur 3 CPU cycles after the $4017 write cycle,
+        //        and if the write occurs between APU cycles, the effects occurs 4 CPU cycles after the write cycle. "
+        //   "If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated."
     }
 }
 
@@ -211,20 +283,20 @@ pub struct APU {
     noise: NoiseChannel,
     dmc: DMC,
     status: APUStatus,
-    frame_counter: u8,
-    irq_enable: bool,
-
+    frame_counter: FrameCounter,
     cycles: usize,
 }
 
 impl APU {
     pub fn new() -> APU {
+        // TODO: initial values
         APU {
             pulse1: PulseChannel::new(1),
             pulse2: PulseChannel::new(2),
             triangle: TriangleChannel::new(),
             noise: NoiseChannel::new(),
             dmc: DMC::new(),
+            frame_counter: FrameCounter::new(),
             status: APUStatus {
                 dmc_enabled: false,
                 noise_enabled: false,
@@ -232,17 +304,29 @@ impl APU {
                 pulse2_enabled: false,
                 pulse1_enabled: false,
             },
-            irq_enable: true,
-            frame_counter: 0x00,
             cycles: 0,
         }
     }
 
     pub fn cycle(&mut self) {
-        // APU cycles:
-        // - "Triangle channel's timer is clocked on every CPU cycle"
-        // - "Pulse, noise, and DMC timers are clocked on every second CPU cycle and thus produce only even periods"
         self.cycles += 1;
+
+        // TODO: do things
+
+        // "Triangle channel's timer is clocked on every CPU cycle"
+        // triangle.tick();
+
+        // Every _other_ cycle, starting at 1
+        if self.cycles & 1 == 0 {
+            // "Pulse, noise, and DMC timers are clocked on every second CPU cycle and thus produce only even periods"
+            // self.pulse1.tick();
+            // self.pulse2.tick();
+            // self.noise.tick();
+            // self.dmc.tick();
+        }
+
+        // Frame counter
+        
     }
 
     pub fn read_addr(&self, addr: u16) -> u8 {
@@ -282,7 +366,7 @@ impl APU {
             0x4013 => self.dmc.write_3(val),
             // Other
             0x4015 => self.write_status(val),
-            0x4017 => self.write_frame_counter(val),
+            0x4017 => self.frame_counter.write_frame_counter(val),
             _ => unreachable!(),
         }
     }
@@ -308,9 +392,5 @@ impl APU {
         self.status.dmc_enabled      = (val & 0b10000) != 0;
 
         debug!("Wrote {:02x} to APU STATUS ($4015)", val & 0b11111)
-    }
-
-    fn write_frame_counter(&mut self, val: u8) {
-        todo!()
     }
 }
