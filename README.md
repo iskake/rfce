@@ -1,12 +1,12 @@
 # rfce
 
-rfce is a Famicom / NES emulator written in rust.
+rfce is a Famicom / NES emulator written in Rust.
 
 ![Screenshot of rfce running and displaying the title screen of Kirby's Adventure (JP version)](img/ka.png)
 
 ## Requirements
 
-[SDL3](libsdl.org) is required to run rfce. SDL3 is available through various package managers, such as:
+[SDL3](libsdl.org) is required to run. SDL3 is available through various package managers, such as:
 
 ```sh
 # debian-based linux system
@@ -22,9 +22,11 @@ rfce is a Famicom / NES emulator written in rust.
 ~ $ brew install sdl3
 ```
 
-On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), either of the `build-sdl3` or `build-sdl3-static` (for dynamic/static linking respectively) features can be enabled (both require `cmake`.)
+On systems where a SDL3 package is not available (or you simply want to compile SDL3 manually), either of the `build-sdl3` or `build-sdl3-static` (for dynamic/static linking respectively) features can be enabled (both require [CMake](https://cmake.org/).)
 
 ## Building
+
+rfce can be easily built using [cargo](https://rust-lang.org/tools/install/):
 
 ```sh
 # Build normally
@@ -59,7 +61,7 @@ rfce has support for the following mappers:
 
 These mappers (especially MMC1 and MMC3) account for a large number of first-party games.
 
-(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ cartridges incl. different regions and revisions), so your mileage may vary.)
+(Note that not all games utilizing these mappers have been tested (both MMC1 and MMC3 are used in 300+ games), so your mileage may vary.)
 
 ### Missing features of note
 
