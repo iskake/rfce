@@ -90,6 +90,7 @@ pub struct CPU {
     pub ppu: PPU,
     pub apu: APU,
     cycles: u64,
+    pub halted: bool,
 }
 
 impl CPU {
@@ -100,6 +101,7 @@ impl CPU {
             ppu: PPU::new(),
             apu: APU::new(),
             cycles: 0,
+            halted: false,
         }
     }
 
@@ -147,6 +149,7 @@ impl CPU {
         self.reg.pc = addr;
         // This is purely based on the value of the Mesen debugger after RESET
         self.cycles = 7;
+        self.halted = false;
     }
 
     pub fn reset(&mut self) -> () {
@@ -238,7 +241,7 @@ impl CPU {
         match addr {
             0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr & 0x7) + 0x2000),
             0x4000..=0x4014 => 0xff, // TODO: open bus read
-            0x4015          => self.apu.read_addr(addr),
+            0x4015          => self.apu.read_addr_no_sideeffect(addr),
             0x4018..=0x401f => 0xff, // TODO: open bus read? (APU test mode & unused IRQ timer)
             _ => self.mem.read_no_sideeffect(addr),
         }
@@ -470,7 +473,7 @@ impl CPU {
             AddrMode::Imm => self.pc_read(),              // +1
             AddrMode::ZP(ir) => self.zp_read_cycle(ir),   // +2
             AddrMode::Abs(ir) => self.abs_read_cycle(ir), // +2
-            AddrMode::Ind(_) => panic!("Operand not needed for any such instructions."),
+            AddrMode::Ind(ir) => self.ind_read_cycle(ir),
             AddrMode::Imp => panic!("Implied does not have an operand"),
             AddrMode::Rel => panic!("Relative operand is only used in branch instructions"),
         }
@@ -527,6 +530,33 @@ impl CPU {
             let l = self.read_addr_cycle(addr); // +1 cycle
             let m = self.read_addr_cycle(addr + 1); // +1 cycle
             as_address(l, m)
+        }
+    }
+
+    /// Read the indirect address in relation to x or y
+    ///
+    /// Cycles: `5` for BOTH x AND y
+    pub fn ind_read_cycle(&mut self, ir: IndexRegister) -> u8 {
+        let m = self.pc_read(); // +1 cycle
+        match ir {
+            IndexRegister::X => {
+                let ptr = as_address(m + self.reg.x, 0x00);
+                let addr = self.get_indirect(ptr); // +2 cycles
+                self.cycle(); //?? +1 cycle extra??
+                self.read_addr_cycle(addr) // +1 cycle
+            }
+            IndexRegister::Y => {
+                let ptr = as_address(m, 0x00);
+                let delta = self.reg.y as u16;
+                let addr = self.get_indirect(ptr); // +2 cycles
+                // if (addr & 0xff00) != ((addr + delta) & 0xff00) {
+                // !! NOTE: this function is only ever used in the unofficial instructions,
+                // !! who "[...] always have a page crossing penalty even if not crossing a page."
+                self.cycle(); // +1 cycle
+                // }
+                self.read_addr_cycle(addr + delta) // +1 cycle
+            }
+            IndexRegister::N => unreachable!(),
         }
     }
 
@@ -622,6 +652,13 @@ impl CPU {
     }
 
     pub fn fetch_and_run(&mut self) -> () {
+        // If cpu is halted, do nothing except cycling the other processors
+        if self.halted {
+            // TODO: check exact behavior
+            self.cycle();
+            return;
+        }
+
         // OAM DMA handling
         if self.reg.dma {
             self.handle_oam_dma();
