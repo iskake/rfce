@@ -1,5 +1,10 @@
 use log::debug;
 
+const LENGTH_COUNTER_VALUES: [u8; 32] = [
+    10,254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14, // 00-0f
+    12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30  // 10-1f
+];
+
 struct PulseChannel {
     channel_num: usize,
 
@@ -15,7 +20,7 @@ struct PulseChannel {
     sweep_reload: bool,
 
     timer: u16,
-    length_counter_load: u8,
+    length_counter: u8,
 
     sequencer: u8,
 }
@@ -34,7 +39,7 @@ impl PulseChannel {
             sweep_shift_count: 0,
             sweep_reload: false,
             timer: 0,
-            length_counter_load: 0,
+            length_counter: LENGTH_COUNTER_VALUES[0],
             sequencer: 0,
         }
     }
@@ -69,13 +74,17 @@ impl PulseChannel {
 
     fn write_3(&mut self, val: u8) {
         self.timer = (self.timer & 0x0ff) | (val as u16 & 0b111) << 8;
-        self.length_counter_load = (val & 0b1111_1000) >> 3;
+        self.length_counter = LENGTH_COUNTER_VALUES[(val as usize & 0b1111_1000) >> 3];
 
         // TODO: Side effect:
         //   "The sequencer is immediately restarted at the first value of the current sequence.
         //   The envelope is also restarted. The persiod divider is _not_ reset."
 
         debug!("Wrote {:02x} to APU PULSE{} ${:04x} (length counter, timer)", val, self.channel_num, 0x4000 + (self.channel_num - 1) * 4 + 3);
+    }
+
+    fn tick(&mut self) {
+        // ...
     }
 }
 
@@ -125,12 +134,20 @@ impl TriangleChannel {
     }
 
     fn write_b(&mut self, val: u8) {
+        // "Length counter load and timer"
+
         self.timer = (self.timer & 0x0ff) | (val as u16 & 0b111) << 8;
+
+        self.length_counter = LENGTH_COUNTER_VALUES[(val as usize & 0b1111_1000) >> 3];
 
         // Side effect: "Sets the linear counter reload flag"
         self.linear_counter_reload = true;
 
         debug!("Wrote {:02x} to APU TRIANGLE $400b (length counter load, timer high)", val);
+    }
+
+    fn tick(&mut self) {
+        // ...
     }
 }
 
@@ -183,6 +200,10 @@ impl NoiseChannel {
         // TODO: "envelope restart"
 
         debug!("Wrote {:02x} to APU NOISE $400f (length counter load)", val);
+    }
+
+    fn tick(&mut self) {
+        // ...
     }
 }
 
@@ -238,11 +259,16 @@ impl DMC {
 
         debug!("Wrote {:02x} to APU DMC $4013 (sample length)", val);
     }
+
+    fn tick(&mut self) {
+        // ...
+    }
 }
 
 struct FrameCounter {
     mode_5_step: bool,
-    irq_enable: bool
+    irq_enable: bool,
+    timer: u16
 }
 
 impl FrameCounter {
@@ -250,6 +276,7 @@ impl FrameCounter {
         FrameCounter {
             mode_5_step: false, // ?
             irq_enable: true,   // ?
+            timer: 0,           // ?
         }
     }
 
@@ -265,6 +292,14 @@ impl FrameCounter {
         //     "* If the write occurs during an APU cycle, the effects occur 3 CPU cycles after the $4017 write cycle,
         //        and if the write occurs between APU cycles, the effects occurs 4 CPU cycles after the write cycle. "
         //   "If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated."
+    }
+
+    fn tick(&mut self) {
+        self.timer += 1;
+    }
+
+    fn reset_timer(&mut self) {
+        self.timer = 0;
     }
 }
 
@@ -285,11 +320,14 @@ pub struct APU {
     status: APUStatus,
     frame_counter: FrameCounter,
     cycles: usize,
+    should_reset_cycles: bool,
+    is_apu_cycle: bool,
+    frame_counter_reset_timeout: i8,
+    frame_interrupt: bool,
 }
 
 impl APU {
     pub fn new() -> APU {
-        // TODO: initial values
         APU {
             pulse1: PulseChannel::new(1),
             pulse2: PulseChannel::new(2),
@@ -305,31 +343,107 @@ impl APU {
                 pulse1_enabled: false,
             },
             cycles: 0,
+
+            should_reset_cycles: false,
+            is_apu_cycle: false,
+            frame_counter_reset_timeout: -1,
+            frame_interrupt: false,
         }
     }
 
     pub fn cycle(&mut self) {
-        self.cycles += 1;
+        if self.should_reset_cycles {
+            self.cycles = 0;
+            self.should_reset_cycles = false;
+        } else {
+            self.cycles += 1;
+        }
+
+        if self.frame_counter_reset_timeout > 0 {
+            self.frame_counter_reset_timeout -= 1;
+
+            if self.frame_counter_reset_timeout == 0 {
+                self.frame_counter.reset_timer();
+            }
+        }
 
         // TODO: do things
 
         // "Triangle channel's timer is clocked on every CPU cycle"
-        // triangle.tick();
+        self.triangle.tick();
 
         // Every _other_ cycle, starting at 1
         if self.cycles & 1 == 0 {
             // "Pulse, noise, and DMC timers are clocked on every second CPU cycle and thus produce only even periods"
-            // self.pulse1.tick();
-            // self.pulse2.tick();
-            // self.noise.tick();
-            // self.dmc.tick();
+            if self.status.pulse1_enabled { self.pulse1.tick(); }
+            if self.status.pulse2_enabled { self.pulse2.tick(); }
+            if self.status.noise_enabled  { self.noise.tick();  }
+            if self.status.dmc_enabled    { self.dmc.tick();    }
+
+            self.is_apu_cycle = true;
+        } else {
+            self.is_apu_cycle = false;
+        }
+
+        match self.cycles {
+            // Quarter frame: Clock "Envelopes & triangle's linear counter"
+            // Half frame:    Clock "Length counters & sweep units" && clock quarter frame
+            3728 => {
+                // Quarter frame
+            }
+            7456 => {
+                // Half frame
+            }
+            11185 => {
+                // Quarter frame
+            }
+            14914 => {
+                if !self.frame_counter.mode_5_step {
+                    // Half frame (if 4-step)
+
+                    if self.frame_counter.irq_enable {
+                        // TODO: "PUT" and "GET"...?
+
+                        // Set frame interrupt flag
+                        self.frame_interrupt = true;
+                    }
+
+                    self.should_reset_cycles = true;
+                }
+            }
+            18640 => {
+                if self.frame_counter.mode_5_step {
+                    // Half frame (if 5-step)
+                }
+
+                self.should_reset_cycles = true;
+            }
+            0 => {
+                if !self.frame_counter.mode_5_step {
+                    if self.frame_counter.irq_enable {
+                        // Set frame interrupt flag
+                        self.frame_interrupt = true;
+                    }
+                }
+            }
+            _ => {},
         }
 
         // Frame counter
-        
+        self.frame_counter.tick();
     }
 
-    pub fn read_addr(&self, addr: u16) -> u8 {
+    pub fn read_addr(&mut self, addr: u16) -> u8 {
+        let val = self.read_addr_no_sideeffect(addr);
+
+        if addr == 0x4015 {
+            self.frame_counter.irq_enable = false;
+        }
+
+        val
+    }
+
+    pub fn read_addr_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x4015 => self.read_status(),
             // 0x4000-0x4014, 0x4017
@@ -366,22 +480,43 @@ impl APU {
             0x4013 => self.dmc.write_3(val),
             // Other
             0x4015 => self.write_status(val),
-            0x4017 => self.frame_counter.write_frame_counter(val),
+            0x4017 => {
+                self.frame_counter.write_frame_counter(val);
+
+                if self.is_apu_cycle {
+                    self.frame_counter_reset_timeout = 3;
+                } else {
+                    self.frame_counter_reset_timeout = 4;
+                }
+            },
             _ => unreachable!(),
         }
     }
 
     fn read_status(&self) -> u8 {
-        // let bit0 = ...;
-        // let bit1 = ...;
-        // let bit2 = ...;
-        // let bit3 = ...;
-        // let bit4 = ...;
-        // let bit5 = 1; // TODO: open bus read ("the open bus value comes from the last cycle that did not read $4015")
-        // let bit6 = ...;
-        // let bit7 = ...;
-        // TODO
-        0xff
+        // "will read as 1 if the corresponding length counter has not been halted through either
+        // expiring or a write of 0 to the corresponding bit.
+        // For the triangle channel,the status of the linear counter is irrelevant."
+        let bit0 = !self.pulse1.length_counter_halt   as u8;
+        let bit1 = !self.pulse2.length_counter_halt   as u8;
+        let bit2 = !self.triangle.control_length_halt as u8;
+        let bit3 = !self.noise.length_counter_halt    as u8;
+        // "Will read as 1 if the DMC bytes remaining is more than 0."
+        let bit4 = 0; // TODO: "will read as 1 if the DMC bytes remaining is more than 0"
+        let bit5 = 1; // TODO: open bus read ("the open bus value comes from the last cycle that did not read $4015")
+
+        // TODO: "Reading this register clears the frame interrupt flag (but no the DMC interrupt flag)."
+        let bit6 = self.frame_counter.irq_enable as u8;
+        let bit7 = self.dmc.irq_enabled as u8;
+
+        bit0
+        | (bit1 << 1)
+        | (bit2 << 2)
+        | (bit3 << 3)
+        | (bit4 << 4)
+        | (bit5 << 5)
+        | (bit6 << 6)
+        | (bit7 << 7)
     }
 
     fn write_status(&mut self, val: u8) {
