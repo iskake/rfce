@@ -83,8 +83,6 @@ pub enum Inst {
     RRA(AddrMode), LAS(AddrMode), LAX(AddrMode), SAX(AddrMode), SLO(AddrMode), SRE(AddrMode), SHX(AddrMode),
     SHY(AddrMode), ISC(AddrMode), TAS(AddrMode), XAA(AddrMode),
     STP(u8),
-    // TODO
-    ILL(u8),
 }
 
 impl std::fmt::Display for Inst {
@@ -166,35 +164,48 @@ impl std::fmt::Display for Inst {
             TAS(am) => write!(f, "tas{am}"),
             XAA(am) => write!(f, "xaa{am}"),
             STP(x)        => write!(f, "stp (${x})"),
-
-            ILL(x)        => write!(f, "ill (${x})"),
         }
     }
 }
 
-use log::error;
 use AddrMode::*;
 use IndexRegister::*;
 use Inst::*;
 
 #[rustfmt::skip]
 pub const INST_TABLE: [Inst; 256] = [
-    BRK(Imp   ), ORA(Ind(X)), STP(0x02  ), SLO(Ind(X)), NOP(ZP(N) ), ORA(ZP(N) ), ASL(ZP(N) ), SLO(ZP(N) ), PHP(Imp   ), ORA(Imm   ), ASL(Acc   ), ANC(Imm   ), NOP(Abs(N)), ORA(Abs(N)), ASL(Abs(N)), SLO(Abs(N)), 
-    BPL(Rel   ), ORA(Ind(Y)), STP(0x12  ), SLO(Ind(Y)), NOP(ZP(X) ), ORA(ZP(X) ), ASL(ZP(X) ), SLO(ZP(X) ), CLC(Imp   ), ORA(Abs(Y)), NOP(Imp   ), SLO(Abs(Y)), NOP(Abs(X)), ORA(Abs(X)), ASL(Abs(X)), SLO(Abs(X)), 
-    JSR(Abs(N)), AND(Ind(X)), STP(0x22  ), RLA(Ind(X)), BIT(ZP(N) ), AND(ZP(N) ), ROL(ZP(N) ), RLA(ZP(N) ), PLP(Imp   ), AND(Imm   ), ROL(Acc   ), ANC(Imm   ), BIT(Abs(N)), AND(Abs(N)), ROL(Abs(N)), RLA(Abs(N)), 
-    BMI(Rel   ), AND(Ind(Y)), STP(0x32  ), RLA(Ind(Y)), NOP(ZP(X) ), AND(ZP(X) ), ROL(ZP(X) ), RLA(ZP(X) ), SEC(Imp   ), AND(Abs(Y)), NOP(Imp   ), RLA(Abs(Y)), NOP(Abs(X)), AND(Abs(X)), ROL(Abs(X)), RLA(Abs(X)), 
-    RTI(Imp   ), EOR(Ind(X)), STP(0x42  ), SRE(Ind(X)), NOP(ZP(N) ), EOR(ZP(N) ), LSR(ZP(N) ), SRE(ZP(N) ), PHA(Imp   ), EOR(Imm   ), LSR(Acc   ), ALR(Imm   ), JMP(Abs(N)), EOR(Abs(N)), LSR(Abs(N)), SRE(Abs(N)), 
-    BVC(Rel   ), EOR(Ind(Y)), STP(0x52  ), SRE(Ind(Y)), NOP(ZP(X) ), EOR(ZP(X) ), LSR(ZP(X) ), SRE(ZP(X) ), CLI(Imp   ), EOR(Abs(Y)), NOP(Imp   ), SRE(Abs(Y)), NOP(Abs(X)), EOR(Abs(X)), LSR(Abs(X)), SRE(Abs(X)), 
-    RTS(Imp   ), ADC(Ind(X)), STP(0x62  ), RRA(Ind(X)), NOP(ZP(N) ), ADC(ZP(N) ), ROR(ZP(N) ), RRA(ZP(N) ), PLA(Imp   ), ADC(Imm   ), ROR(Acc   ), ARR(Imm   ), JMP(Ind(N)), ADC(Abs(N)), ROR(Abs(N)), RRA(Abs(N)), 
-    BVS(Rel   ), ADC(Ind(Y)), STP(0x72  ), RRA(Ind(Y)), NOP(ZP(X) ), ADC(ZP(X) ), ROR(ZP(X) ), RRA(ZP(X) ), SEI(Imp   ), ADC(Abs(Y)), NOP(Imp   ), RRA(Abs(Y)), NOP(Abs(X)), ADC(Abs(X)), ROR(Abs(X)), RRA(Abs(X)), 
-    NOP(Imm   ), STA(Ind(X)), NOP(Imm   ), SAX(Ind(X)), STY(ZP(N) ), STA(ZP(N) ), STX(ZP(N) ), SAX(ZP(N) ), DEY(Imp   ), NOP(Imm   ), TXA(Imp   ), XAA(Imm   ), STY(Abs(N)), STA(Abs(N)), STX(Abs(N)), SAX(Abs(N)), 
-    BCC(Rel   ), STA(Ind(Y)), STP(0x92  ), AHX(Ind(Y)), STY(ZP(X) ), STA(ZP(X) ), STX(ZP(Y) ), SAX(ZP(Y) ), TYA(Imp   ), STA(Abs(Y)), TXS(Imp   ), TAS(Abs(Y)), SHY(Abs(X)), STA(Abs(X)), SHX(Abs(Y)), AHX(Abs(Y)), 
-    LDY(Imm   ), LDA(Ind(X)), LDX(Imm   ), LAX(Ind(X)), LDY(ZP(N) ), LDA(ZP(N) ), LDX(ZP(N) ), LAX(ZP(N) ), TAY(Imp   ), LDA(Imm   ), TAX(Imp   ), LAX(Imm   ), LDY(Abs(N)), LDA(Abs(N)), LDX(Abs(N)), LAX(Abs(N)), 
-    BCS(Rel   ), LDA(Ind(Y)), STP(0xb2  ), LAX(Ind(Y)), LDY(ZP(X) ), LDA(ZP(X) ), LDX(ZP(Y) ), LAX(ZP(Y) ), CLV(Imp   ), LDA(Abs(Y)), TSX(Imp   ), LAS(Abs(Y)), LDY(Abs(X)), LDA(Abs(X)), LDX(Abs(Y)), LAX(Abs(Y)), 
-    CPY(Imm   ), CMP(Ind(X)), NOP(Imm   ), DCP(Ind(X)), CPY(ZP(N) ), CMP(ZP(N) ), DEC(ZP(N) ), DCP(ZP(N) ), INY(Imp   ), CMP(Imm   ), DEX(Imp   ), AXS(Imm   ), CPY(Abs(N)), CMP(Abs(N)), DEC(Abs(N)), DCP(Abs(N)), 
-    BNE(Rel   ), CMP(Ind(Y)), STP(0xd2  ), DCP(Ind(Y)), NOP(ZP(X) ), CMP(ZP(X) ), DEC(ZP(X) ), DCP(ZP(X) ), CLD(Imp   ), CMP(Abs(Y)), NOP(Imp   ), DCP(Abs(Y)), NOP(Abs(X)), CMP(Abs(X)), DEC(Abs(X)), DCP(Abs(X)), 
-    CPX(Imm   ), SBC(Ind(X)), NOP(Imm   ), ISC(Ind(X)), CPX(ZP(N) ), SBC(ZP(N) ), INC(ZP(N) ), ISC(ZP(N) ), INX(Imp   ), SBC(Imm   ), NOP(Imp   ), SBC(Imm   ), CPX(Abs(N)), SBC(Abs(N)), INC(Abs(N)), ISC(Abs(N)), 
-    BEQ(Rel   ), SBC(Ind(Y)), STP(0xf2  ), ISC(Ind(Y)), NOP(ZP(X) ), SBC(ZP(X) ), INC(ZP(X) ), ISC(ZP(X) ), SED(Imp   ), SBC(Abs(Y)), NOP(Imp   ), ISC(Abs(Y)), NOP(Abs(X)), SBC(Abs(X)), INC(Abs(X)), ISC(Abs(X)), 
+    BRK(Imp   ), ORA(Ind(X)), STP(0x02  ), SLO(Ind(X)), NOP(ZP(N) ), ORA(ZP(N) ), ASL(ZP(N) ), SLO(ZP(N) ), 
+    PHP(Imp   ), ORA(Imm   ), ASL(Acc   ), ANC(Imm   ), NOP(Abs(N)), ORA(Abs(N)), ASL(Abs(N)), SLO(Abs(N)), 
+    BPL(Rel   ), ORA(Ind(Y)), STP(0x12  ), SLO(Ind(Y)), NOP(ZP(X) ), ORA(ZP(X) ), ASL(ZP(X) ), SLO(ZP(X) ), 
+    CLC(Imp   ), ORA(Abs(Y)), NOP(Imp   ), SLO(Abs(Y)), NOP(Abs(X)), ORA(Abs(X)), ASL(Abs(X)), SLO(Abs(X)), 
+    JSR(Abs(N)), AND(Ind(X)), STP(0x22  ), RLA(Ind(X)), BIT(ZP(N) ), AND(ZP(N) ), ROL(ZP(N) ), RLA(ZP(N) ), 
+    PLP(Imp   ), AND(Imm   ), ROL(Acc   ), ANC(Imm   ), BIT(Abs(N)), AND(Abs(N)), ROL(Abs(N)), RLA(Abs(N)), 
+    BMI(Rel   ), AND(Ind(Y)), STP(0x32  ), RLA(Ind(Y)), NOP(ZP(X) ), AND(ZP(X) ), ROL(ZP(X) ), RLA(ZP(X) ), 
+    SEC(Imp   ), AND(Abs(Y)), NOP(Imp   ), RLA(Abs(Y)), NOP(Abs(X)), AND(Abs(X)), ROL(Abs(X)), RLA(Abs(X)), 
+    RTI(Imp   ), EOR(Ind(X)), STP(0x42  ), SRE(Ind(X)), NOP(ZP(N) ), EOR(ZP(N) ), LSR(ZP(N) ), SRE(ZP(N) ), 
+    PHA(Imp   ), EOR(Imm   ), LSR(Acc   ), ALR(Imm   ), JMP(Abs(N)), EOR(Abs(N)), LSR(Abs(N)), SRE(Abs(N)), 
+    BVC(Rel   ), EOR(Ind(Y)), STP(0x52  ), SRE(Ind(Y)), NOP(ZP(X) ), EOR(ZP(X) ), LSR(ZP(X) ), SRE(ZP(X) ), 
+    CLI(Imp   ), EOR(Abs(Y)), NOP(Imp   ), SRE(Abs(Y)), NOP(Abs(X)), EOR(Abs(X)), LSR(Abs(X)), SRE(Abs(X)), 
+    RTS(Imp   ), ADC(Ind(X)), STP(0x62  ), RRA(Ind(X)), NOP(ZP(N) ), ADC(ZP(N) ), ROR(ZP(N) ), RRA(ZP(N) ), 
+    PLA(Imp   ), ADC(Imm   ), ROR(Acc   ), ARR(Imm   ), JMP(Ind(N)), ADC(Abs(N)), ROR(Abs(N)), RRA(Abs(N)), 
+    BVS(Rel   ), ADC(Ind(Y)), STP(0x72  ), RRA(Ind(Y)), NOP(ZP(X) ), ADC(ZP(X) ), ROR(ZP(X) ), RRA(ZP(X) ), 
+    SEI(Imp   ), ADC(Abs(Y)), NOP(Imp   ), RRA(Abs(Y)), NOP(Abs(X)), ADC(Abs(X)), ROR(Abs(X)), RRA(Abs(X)), 
+    NOP(Imm   ), STA(Ind(X)), NOP(Imm   ), SAX(Ind(X)), STY(ZP(N) ), STA(ZP(N) ), STX(ZP(N) ), SAX(ZP(N) ), 
+    DEY(Imp   ), NOP(Imm   ), TXA(Imp   ), XAA(Imm   ), STY(Abs(N)), STA(Abs(N)), STX(Abs(N)), SAX(Abs(N)), 
+    BCC(Rel   ), STA(Ind(Y)), STP(0x92  ), AHX(Ind(Y)), STY(ZP(X) ), STA(ZP(X) ), STX(ZP(Y) ), SAX(ZP(Y) ), 
+    TYA(Imp   ), STA(Abs(Y)), TXS(Imp   ), TAS(Abs(Y)), SHY(Abs(X)), STA(Abs(X)), SHX(Abs(Y)), AHX(Abs(Y)), 
+    LDY(Imm   ), LDA(Ind(X)), LDX(Imm   ), LAX(Ind(X)), LDY(ZP(N) ), LDA(ZP(N) ), LDX(ZP(N) ), LAX(ZP(N) ), 
+    TAY(Imp   ), LDA(Imm   ), TAX(Imp   ), LAX(Imm   ), LDY(Abs(N)), LDA(Abs(N)), LDX(Abs(N)), LAX(Abs(N)), 
+    BCS(Rel   ), LDA(Ind(Y)), STP(0xb2  ), LAX(Ind(Y)), LDY(ZP(X) ), LDA(ZP(X) ), LDX(ZP(Y) ), LAX(ZP(Y) ), 
+    CLV(Imp   ), LDA(Abs(Y)), TSX(Imp   ), LAS(Abs(Y)), LDY(Abs(X)), LDA(Abs(X)), LDX(Abs(Y)), LAX(Abs(Y)), 
+    CPY(Imm   ), CMP(Ind(X)), NOP(Imm   ), DCP(Ind(X)), CPY(ZP(N) ), CMP(ZP(N) ), DEC(ZP(N) ), DCP(ZP(N) ), 
+    INY(Imp   ), CMP(Imm   ), DEX(Imp   ), AXS(Imm   ), CPY(Abs(N)), CMP(Abs(N)), DEC(Abs(N)), DCP(Abs(N)), 
+    BNE(Rel   ), CMP(Ind(Y)), STP(0xd2  ), DCP(Ind(Y)), NOP(ZP(X) ), CMP(ZP(X) ), DEC(ZP(X) ), DCP(ZP(X) ), 
+    CLD(Imp   ), CMP(Abs(Y)), NOP(Imp   ), DCP(Abs(Y)), NOP(Abs(X)), CMP(Abs(X)), DEC(Abs(X)), DCP(Abs(X)), 
+    CPX(Imm   ), SBC(Ind(X)), NOP(Imm   ), ISC(Ind(X)), CPX(ZP(N) ), SBC(ZP(N) ), INC(ZP(N) ), ISC(ZP(N) ), 
+    INX(Imp   ), SBC(Imm   ), NOP(Imp   ), SBC(Imm   ), CPX(Abs(N)), SBC(Abs(N)), INC(Abs(N)), ISC(Abs(N)), 
+    BEQ(Rel   ), SBC(Ind(Y)), STP(0xf2  ), ISC(Ind(Y)), NOP(ZP(X) ), SBC(ZP(X) ), INC(ZP(X) ), ISC(ZP(X) ), 
+    SED(Imp   ), SBC(Abs(Y)), NOP(Imp   ), ISC(Abs(Y)), NOP(Abs(X)), SBC(Abs(X)), INC(Abs(X)), ISC(Abs(X)), 
 ];
 
 impl Inst {
@@ -280,7 +291,6 @@ impl Inst {
             LAS(am) => las(cpu, am),
             XAA(am) => xaa(cpu, am),
             STP(op) => stp(cpu, op),
-            ILL(op) => ill(cpu, op),
         }
     }
 }
@@ -593,15 +603,6 @@ fn dcp(cpu: &mut CPU, am: AddrMode, isc: bool) {
     }
 }
 
-macro_rules! combined_inst_unofficial {
-    ($fn_name: ident) => {
-        fn $fn_name(cpu: &mut CPU, am: AddrMode) {
-            // alr: AND #i then LSR A
-            todo!();
-        }
-    };
-}
-
 fn alr(cpu: &mut CPU, am: AddrMode) {
     log::info!("Unofficial alr with addr mode: {am:?}");
     let val = cpu.operand_read_inc(am);
@@ -775,12 +776,6 @@ fn xaa(cpu: &mut CPU, am: AddrMode) {
 }
 
 fn stp(cpu: &mut CPU, opcode: u8) -> () {
-    log::warn!("Hit stp instruction, halting CPU emulation.");
+    log::warn!("Hit stp instruction (opcode ${opcode:02x}), CPU will be halted.");
     cpu.halted = true;
-}
-
-fn ill(cpu: &mut CPU, opcode: u8) -> () {
-    error!("just hit illegal instruction... goodbye world");
-    cpu.print_state();
-    panic!("ILLEGAL INSTRUCTION ${:02x}", opcode);
 }
