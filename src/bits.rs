@@ -6,7 +6,8 @@ pub trait Bitwise: PrimInt {
     /// Tests the bit at position `i` in the given integer.
     /// 
     /// ```
-    /// assert_eq!(1.test_bit(1), true);
+    /// assert_eq!(1.test_bit(0), true);
+    /// assert_eq!(1.test_bit(1), false);
     /// assert_eq!(0xff.test_bit(7), true);
     /// assert_eq!(0xefff.test_bit(15), false);
     /// ```
@@ -76,6 +77,7 @@ mod test {
     #[test]
     fn test_bit_test() {
         assert_eq!(1.test_bit(0), true);
+        assert_eq!(1.test_bit(1), false);
         assert_eq!(0xff.test_bit(7), true);
         assert_eq!(0x7fffu16.test_bit(15), false);
         assert_eq!((u128::MAX - (1 << 127)).test_bit(127), false);
