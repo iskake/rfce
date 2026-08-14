@@ -324,6 +324,7 @@ pub struct APU {
     is_apu_cycle: bool,
     frame_counter_reset_timeout: i8,
     frame_interrupt: bool,
+    open_bus: u8,
 }
 
 impl APU {
@@ -348,6 +349,7 @@ impl APU {
             is_apu_cycle: false,
             frame_counter_reset_timeout: -1,
             frame_interrupt: false,
+            open_bus: 0x00,
         }
     }
 
@@ -447,7 +449,10 @@ impl APU {
         match addr {
             0x4015 => self.read_status(),
             // 0x4000-0x4014, 0x4017
-            _ => 0xff, // TODO: should be open bus
+            _ => {
+                log::info!("Open bus read at ${addr:04x}");
+                self.open_bus
+            }
         }
     }
 
@@ -503,7 +508,7 @@ impl APU {
         let bit3 = !self.noise.length_counter_halt    as u8;
         // "Will read as 1 if the DMC bytes remaining is more than 0."
         let bit4 = 0; // TODO: "will read as 1 if the DMC bytes remaining is more than 0"
-        let bit5 = 1; // TODO: open bus read ("the open bus value comes from the last cycle that did not read $4015")
+        let bit5 = (self.open_bus & 0b0010_0000) >> 5; // Open bus read ("the open bus value comes from the last cycle that did not read $4015")
 
         // TODO: "Reading this register clears the frame interrupt flag (but no the DMC interrupt flag)."
         let bit6 = self.frame_counter.irq_enable as u8;
@@ -527,5 +532,9 @@ impl APU {
         self.status.dmc_enabled      = (val & 0b10000) != 0;
 
         debug!("Wrote {:02x} to APU STATUS ($4015)", val & 0b11111)
+    }
+
+    pub(crate) fn set_open_bus(&mut self, val: u8) -> () {
+        self.open_bus = val;
     }
 }

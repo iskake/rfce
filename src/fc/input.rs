@@ -19,6 +19,7 @@ pub struct Controller {
     joy2: u8,
     joy1_tmp: u8,
     joy2_tmp: u8,
+    pub(crate) open_bus: u8,
 }
 
 macro_rules! define_read_fn {
@@ -37,7 +38,7 @@ macro_rules! define_read_fn {
             // TODO: bits 5-7 are open bus
             let val = self.$joy_num & 1;
             self.$joy_num >>= 1;
-            val
+            val | (self.open_bus & 0b1110_0000)
         }
     };
 }
@@ -60,6 +61,8 @@ impl Controller {
             joy2: 0x00,
             joy1_tmp: 0x00,
             joy2_tmp: 0x00,
+
+            open_bus: 0x00,
         }
     }
 

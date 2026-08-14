@@ -340,4 +340,14 @@ impl MemMap {
             _ => false,
         }
     }
+
+    pub(crate) fn set_open_bus(&mut self, val: u8) {
+        self.input.open_bus = val;
+        match self.mapper.as_mut() {
+            MapperImpl::NROM(m) => m.open_bus = val,
+            MapperImpl::MMC1(m) => m.open_bus = val,
+            MapperImpl::MMC3(m) => m.open_bus = val,
+            _ => (),
+        }
+    }
 }

@@ -16,6 +16,7 @@ pub struct NROMMapper {
     prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
     nametable_v_mirror: bool,
+    pub(crate) open_bus: u8,
     // TODO?
     // ..."PRG RAM: 2 or 4 KiB"
     // ..."CHR capacity: 8KiB ROM"
@@ -65,6 +66,7 @@ impl RealMapper for NROMMapper {
             prg_ram,
             chr_rom,
             nametable_v_mirror,
+            open_bus: 0x00,
         }
     }
 }
@@ -110,14 +112,14 @@ impl Mapper for NROMMapper {
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x4020..=0x5fff => {
-                info!("Open bus read");
-                0xff    // TODO: open bus read
+                info!("Open bus read at ${addr:04x}");
+                self.open_bus
             }
             0x6000..=0x7fff => {
                 // PRG RAM
                 if self.prg_ram.len() == 0 {
-                    info!("Open bus read");
-                    return 0xff;    // TODO: open bus read
+                    info!("Open bus read at ${addr:04x}");
+                    return self.open_bus;
                 }
 
                 self.prg_ram[(addr - 0x6000) as usize]

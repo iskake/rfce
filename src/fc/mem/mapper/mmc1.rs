@@ -37,6 +37,7 @@ pub struct MMC1Mapper {
     chr_bank_mode: CHRBankMode,
     nametable_arrange: NametableArrangement,
     reg: Registers,
+    pub(crate) open_bus: u8,
 }
 
 impl RealMapper for MMC1Mapper {
@@ -110,6 +111,8 @@ impl RealMapper for MMC1Mapper {
             },
             prg_bank_mode,
             chr_bank_mode,
+
+            open_bus: 0x00,
         }
     }
 }
@@ -330,12 +333,15 @@ impl Mapper for MMC1Mapper {
         let banks = self.prg_rom.len() / CHR_BANK_SIZE;
 
         match addr {
-            0x4020..=0x5fff => 0xff, // TODO: open bus read
+            0x4020..=0x5fff => {
+                info!("Open bus read at ${addr:04x}");
+                self.open_bus
+            },
             0x6000..=0x7fff => {
                 // "8KB PRG-RAM bank (optional)"
                 if self.prg_ram.len() == 0 {
-                    info!("Open bus read");
-                    return 0xff;     // TODO: open bus read
+                    info!("Open bus read at ${addr:04x}");
+                    return self.open_bus;
                 }
 
                 self.prg_ram[(addr - 0x6000) as usize]

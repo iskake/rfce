@@ -91,6 +91,7 @@ pub struct CPU {
     pub apu: APU,
     cycles: u64,
     pub halted: bool,
+    data_bus: u8,
 }
 
 impl CPU {
@@ -102,6 +103,7 @@ impl CPU {
             apu: APU::new(),
             cycles: 0,
             halted: false,
+            data_bus: 0x00, // ?
         }
     }
 
@@ -149,7 +151,9 @@ impl CPU {
         self.reg.pc = addr;
         // This is purely based on the value of the Mesen debugger after RESET
         self.cycles = 7;
+
         self.halted = false;
+        self.data_bus = m;  // ?
     }
 
     pub fn reset(&mut self) -> () {
@@ -227,22 +231,36 @@ impl CPU {
     }
 
     fn mem_read(&mut self, addr: u16) -> u8 {
-        match addr {
+        let val = match addr {
             0x2000..=0x3fff => self.ppu.read_mmio((addr & 0x7) + 0x2000, &mut self.mem),
-            0x4000..=0x4014 => 0xff, // TODO: open bus read
+            0x4000..=0x4014 => {
+                info!("Open bus read at ${addr:04x}");
+                self.data_bus
+            },
             0x4015          => self.apu.read_addr(addr),
-            0x4018..=0x401f => 0xff, // TODO: open bus read? (APU test mode & unused IRQ timer)
+            0x4018..=0x401f => {
+                // TODO: open bus read? (APU test mode & unused IRQ timer)
+                info!("Open bus read at ${addr:04x}");
+                self.data_bus
+            }
             _ => self.mem.read(addr),
+        };
+
+        // TODO? check if this is proper handling of open bus read at 0x4015?
+        if addr != 0x4015 {
+            self.data_bus = val;
+            self.apu.set_open_bus(val);
+            self.mem.set_open_bus(val);
         }
+        val
     }
 
-    // TODO: better function name
     fn mem_read_no_sideeffect(&self, addr: u16) -> u8 {
         match addr {
             0x2000..=0x3fff => self.ppu.read_mmio_no_sideeffect((addr & 0x7) + 0x2000),
-            0x4000..=0x4014 => 0xff, // TODO: open bus read
+            0x4000..=0x4014 => self.data_bus, // Open bus read
             0x4015          => self.apu.read_addr_no_sideeffect(addr),
-            0x4018..=0x401f => 0xff, // TODO: open bus read? (APU test mode & unused IRQ timer)
+            0x4018..=0x401f => self.data_bus, // TODO: open bus read? (APU test mode & unused IRQ timer)
             _ => self.mem.read_no_sideeffect(addr),
         }
     }
@@ -259,6 +277,8 @@ impl CPU {
             0x4018..=0x401f => (), // APU test mode & unused IRQ timer
             _ => self.mem.write(addr, val),
         };
+
+        self.data_bus = val;
     }
 
     /// Read the value at the address `addr` without any cycles (including in the PPU).

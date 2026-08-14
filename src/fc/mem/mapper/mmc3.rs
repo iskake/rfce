@@ -62,6 +62,7 @@ pub struct MMC3Mapper {
     chr_bank_mode: CHRBankMode,
     reg: Registers,
     irq_triggered: bool,
+    pub(crate) open_bus: u8,
 }
 
 impl RealMapper for MMC3Mapper {
@@ -144,6 +145,8 @@ impl RealMapper for MMC3Mapper {
                 irq_counter: 0x00,
                 irq_reload: false,
             },
+
+            open_bus: 0x00,
         }
     }
 }
@@ -422,17 +425,16 @@ impl Mapper for MMC3Mapper {
         let banks = self.prg_rom.len() / PRG_BANK_SIZE;
         match addr {
             0x4020..=0x5fff => {
-                info!("Open bus read");
-                0xff    // TODO: open bus read
+                info!("Open bus read at ${addr:04x}");
+                self.open_bus
             }
             0x6000..=0x7fff => {
                 // "8KB switchable RAM bank (optional)"
                 if self.reg.prg_ram_enabled && self.prg_ram.len() > 0 {
                     self.prg_ram[(addr - 0x6000) as usize]
                 } else {
-                    // TODO: should read open bus
-                    info!("Open bus read");
-                    0xff
+                    info!("Open bus read at ${addr:04x}");
+                    self.open_bus
                 }
             }
             0x8000..=0x9fff => {

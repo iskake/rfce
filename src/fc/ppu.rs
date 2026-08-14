@@ -555,12 +555,16 @@ impl PPU {
     }
 
     fn read_oamdata(&self) -> u8 {
-        let _val = self.reg.oam_data;
-        todo!("read_oamdata")
+        let val = self.oam[self.reg.oam_addr as usize];
+        log::info!("Read ${val:02x} from OAMDATA (${ADDRESS_OAMDATA:04x}; actual read at OAM address ${:02x})", self.reg.oam_addr);
+        val
     }
 
-    fn write_oamdata(&mut self, _val: u8) {
-        todo!("write_oamdata")
+    fn write_oamdata(&mut self, val: u8) {
+        // self.reg.oam_data = val;
+        self.oam[self.reg.oam_addr as usize] = val;
+        log::info!("Wrote ${val:02x} to OAMDATA (${ADDRESS_OAMDATA:04x}; actual write at OAM address ${:02x})", self.reg.oam_addr);
+        self.reg.oam_addr += 1;
     }
 
     fn write_ppuscroll(&mut self, val: u8) {
@@ -698,6 +702,7 @@ impl PPU {
 
                             o.curr_in_bounds = true;
                             o.oam_ptr += 1;
+                            self.reg.oam_addr += 1;
                             o.m += 1;
 
                             if o.m == 4 {
@@ -863,6 +868,10 @@ impl PPU {
                     }
 
                     // TODO2: "The shifters are reloaded during ticks 9, 17, 25, ..., 257."
+
+                    // "OAMADDR is set to 0 during each of ticks 257–320 (the sprite tile loading interval)
+                    // of the pre-render and visible scanlines"
+                    self.reg.oam_addr = 0;
                 }
             },
             321..=336 => {  // fetch tile data for first two tiles for the next scanline

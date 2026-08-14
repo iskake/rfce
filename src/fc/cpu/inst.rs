@@ -507,12 +507,12 @@ fn jmp(cpu: &mut CPU, am: AddrMode, jsr: bool) -> () {
             let m = if !jsr {
                 cpu.pc_read_inc() // +1 cycle
             } else {
-                let val = cpu.pc_read_nocycle(); // !!TODO: check (jsr is 5 cycles (w/o opcode))
+                cpu.push(cpu.reg.pc.msb()); // +2
+                cpu.push(cpu.reg.pc.lsb()); // +2
 
                 // as a side effect of using nocycle, pc is already "pc-1"
                 // (which is what _should_ be pushed)
-                cpu.push(cpu.reg.pc.msb()); // +2
-                cpu.push(cpu.reg.pc.lsb()); // +2
+                let val = cpu.pc_read_nocycle(); // !!TODO: check (jsr is 5 cycles (w/o opcode))
                 val
             };
             let addr = as_address(l, m);
