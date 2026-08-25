@@ -94,6 +94,8 @@ impl RealMapper for MMC1Mapper {
         let prg_bank_mode = PRGBankMode::FixLast;
         let chr_bank_mode = CHRBankMode::Switch8K;
 
+        let last_prg_bank = (prg_rom_size / PRG_BANK_SIZE) - 1;
+
         MMC1Mapper {
             battery,
             prg_rom,
@@ -105,7 +107,7 @@ impl RealMapper for MMC1Mapper {
                 shift: 0x00,
                 control: 0b01100,
                 prg_bank0: 0x00,
-                prg_bank1: 0x00,
+                prg_bank1: last_prg_bank,
                 chr_bank0: 0x00,
                 chr_bank1: 0x00,
             },
