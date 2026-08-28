@@ -220,7 +220,6 @@ pub struct PPU {
 
 struct OAMSystem {
     sprites: [Sprite; 8],
-    tmp_idxes: [u8; 8],
     oam_secondary: [u8; OAM_SIZE / 2],
     oam_tmp: u8,
     n: usize,
@@ -244,7 +243,6 @@ impl OAMSystem {
                 attrs: 0,
                 x: 0,
             }; 8],
-            tmp_idxes: [0xff; 8],
             oam_secondary: [0; OAM_SIZE / 2],
             oam_ptr: 0,
             oam_tmp: 0,
@@ -421,7 +419,11 @@ impl PPU {
     pub fn read_addr(&mut self, addr: u16, mem: &mut MemMap) -> u8 {
         self.update_addr_bus(addr, mem);
 
-        self.read_addr_no_sideeffect(addr, mem)
+        if addr < 0x2000 {
+            mem.mapper.read_chr(addr)
+        } else {
+            self.read_addr_no_sideeffect(addr, mem)
+        }
     }
 
     pub fn read_addr_no_sideeffect(&self, addr: u16, mem: &MemMap) -> u8 {
@@ -432,7 +434,7 @@ impl PPU {
         let addr = addr & 0x3fff;
 
         match addr {
-            0x0000..=0x1fff => mem.mapper.read_chr(addr),
+            0x0000..=0x1fff => mem.mapper.read_chr_no_sideeffect(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
             0x3000..=0x3eff => mem.mapper.nametable_read(addr - 0x1000, self.vram), // Unused, "usually" mirror of 0x2000..=0x2eff
             0x3f00..=0x3fff => self.pal[((addr - 0x3f00) % 0x20) as usize],
@@ -759,7 +761,6 @@ impl PPU {
             321..=340 | 0 => {  // "background render pipeline initialization"
                 // "Read the first byte in secondary OAM (while the PPU fetches the first two background tiles for the next scanline)"
                 o.oam_tmp = o.oam_secondary[0];
-                o.tmp_idxes = [0xff; 8];
                 o.n = 0;
                 o.m = 0;
                 o.oam_ptr = 0;
@@ -855,6 +856,7 @@ impl PPU {
                     }
 
                     // "The tile data for the sprites on the _next_ scanline are fetched here."
+                    let i = (self.cycle as usize & 0x8) >> 3;
                     match self.cycle & 0x7 {
                         1 => {
                             // "Garbage nametable byte"
@@ -866,13 +868,17 @@ impl PPU {
                         } // 259
                         5 => {
                             // "Pattern table tile low"
-                            // TODO: this is basically just to get MMC3 IRQ working. Look into implementing it properly
-                            self.read_addr(self.reg.control.spr_pattern_addr, mem);
+                            let pattern_addr = self.reg.control.spr_pattern_addr as usize;
+                            let tile_idx = self.oam_sys.sprites[i].tile as usize;
+
+                            self.read_addr((pattern_addr + (tile_idx << 4)) as u16, mem);
                         } // 261
                         7 => {
-                            // "Pattern table tile high"
-                            // TODO: same again
-                            self.read_addr(self.reg.control.spr_pattern_addr, mem);
+                            // "Pattern table tile high (8 bytes above pattern table low address)"
+                            let pattern_addr = self.reg.control.spr_pattern_addr as usize;
+                            let tile_idx = self.oam_sys.sprites[i].tile as usize;
+
+                            self.read_addr((pattern_addr + (tile_idx << 4) + 8) as u16, mem);
                         } // 263
                         _ => {} // other
                     }
@@ -1148,7 +1154,7 @@ impl PPU {
 
                 let bg_addr = self.reg.control.bg_pattern_addr;
                 let tile_bytes: Vec<u8> = (tile_ptr..tile_ptr + TILE_SIZE)
-                    .map(|x| mem.mapper.read_chr(x + bg_addr))
+                    .map(|x| mem.mapper.read_chr_no_sideeffect(x + bg_addr))
                     .collect();
 
                 assert_eq!(tile_bytes.len(), TILE_SIZE as usize);

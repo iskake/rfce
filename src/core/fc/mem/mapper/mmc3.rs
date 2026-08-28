@@ -294,22 +294,6 @@ impl MMC3Mapper {
         self.irq_triggered = false;
     }
 
-    pub(crate) fn replace_sram(&mut self, sram: Vec<u8>) -> Result<(), std::io::Error> {
-        if self.prg_ram.len() != sram.len() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Size of save RAM is incorrect, expected {} got {}",
-                    self.prg_ram.len(),
-                    sram.len()
-                )
-            ));
-        }
-
-        self.prg_ram = sram;
-        Ok(())
-    }
-
     pub(crate) fn sram(&self) -> &Vec<u8> {
         &self.prg_ram
     }
@@ -384,7 +368,11 @@ macro_rules! bank_addr {
 }
 
 impl Mapper for MMC3Mapper {
-    fn read_chr(&self, addr: u16) -> u8 {
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        self.read_chr_no_sideeffect(addr)
+    }
+
+    fn read_chr_no_sideeffect(&self, addr: u16) -> u8 {
         if let Swap2KiBAt0000 = self.chr_bank_mode {
             match addr {
                 0x0000..=0x07ff => self.chr_rom[bank_addr!(CHR; addr, 0x0000, self.reg.chr_bank0)],

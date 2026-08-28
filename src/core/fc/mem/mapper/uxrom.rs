@@ -43,7 +43,8 @@ impl RealMapper for UxROMMapper {
         assert!(nesfile.mapper_type() == MapperType::UxROM);
 
         let board_type = match nesfile.mapper_number() {
-            2 => UxROMVariety::UxROM,
+            // TODO: submappers
+            2 => UxROMVariety::UxROM, 
             94 => UxROMVariety::UN1ROM,
             180 => UxROMVariety::INES180,
             _ => unreachable!(),
@@ -101,7 +102,11 @@ impl Memory for UxROMMapper {
 }
 
 impl Mapper for UxROMMapper {
-    fn read_chr(&self, addr: u16) -> u8 {
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        self.read_chr_no_sideeffect(addr)
+    }
+
+    fn read_chr_no_sideeffect(&self, addr: u16) -> u8 {
         self.chr_ram[(addr as usize) % self.chr_ram.len()]
     }
 

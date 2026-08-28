@@ -58,6 +58,7 @@ rfce has support for the following mappers:
 - NROM
 - UxROM
 - MMC1
+- MMC2
 - MMC3
 
 These mappers (especially MMC1 and MMC3) account for a large number of first-party games.

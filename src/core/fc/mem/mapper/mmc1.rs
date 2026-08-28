@@ -269,7 +269,11 @@ macro_rules! bank_addr {
 }
 
 impl Mapper for MMC1Mapper {
-    fn read_chr(&self, addr: u16) -> u8 {
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        self.read_chr_no_sideeffect(addr)
+    }
+
+    fn read_chr_no_sideeffect(&self,addr: u16) -> u8 {
         if self.chr_rxm.len() == 0 {
             return 0xff;
         }
@@ -316,7 +320,7 @@ impl Mapper for MMC1Mapper {
     }
 
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
-        let banks = self.prg_rom.len() / CHR_BANK_SIZE;
+        let banks = self.prg_rom.len() / PRG_BANK_SIZE;
 
         match addr {
             0x4020..=0x5fff => {
