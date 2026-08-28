@@ -151,22 +151,26 @@ impl GUI {
 
     fn load_savefile(&mut self) {
         if let Some(fc) = &mut self.fc {
-            let save_path = get_save_path(&self.state.curr_rom_path);
-            info!("Loading save RAM file: {save_path:?}");
+            if fc.can_save() {
+                let save_path = get_save_path(&self.state.curr_rom_path);
+                info!("Loading save RAM file: {save_path:?}");
 
-            if let Err(e) = fc.load_save(&save_path) {
-                warn!("Failed when attempting to read save RAM: {e}")
+                if let Err(e) = fc.load_save(&save_path) {
+                    warn!("Failed when attempting to read save RAM: {e}")
+                }
             }
         }
     }
 
     fn save_savefile(&mut self) {
         if let Some(fc) = &mut self.fc {
-            let save_path = get_save_path(&self.state.curr_rom_path);
-            info!("Saving save RAM file: {save_path:?}");
+            if fc.can_save() {
+                let save_path = get_save_path(&self.state.curr_rom_path);
+                info!("Saving save RAM file: {save_path:?}");
 
-            if let Err(e) = fc.save_save(&save_path) {
-                warn!("Failed when attempting to write save RAM: {e}")
+                if let Err(e) = fc.save_save(&save_path) {
+                    warn!("Failed when attempting to write save RAM: {e}")
+                }
             }
         }
     }

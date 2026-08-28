@@ -12,10 +12,12 @@ use crate::core::fc::{
 const NROM256_PRG_ROM_SIZE: usize = 32_768;
 
 pub struct NROMMapper {
+    battery: bool,
     prg_rom: Vec<u8>,
     prg_ram: Vec<u8>,
     chr_rom: Vec<u8>,
     nametable_v_mirror: bool,
+
     pub(crate) open_bus: u8,
     // TODO?
     // ..."PRG RAM: 2 or 4 KiB"
@@ -32,6 +34,14 @@ impl NROMMapper {
             ((a & 0x800) >> 1) | (a & 0x3ff)
         }
     }
+
+    pub(crate) fn sram(&self) -> &Vec<u8> {
+        &self.prg_ram
+    }
+
+    pub(crate) fn sram_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.prg_ram
+    }
 }
 
 impl RealMapper for NROMMapper {
@@ -42,6 +52,8 @@ impl RealMapper for NROMMapper {
         let prg_ram_size = nesfile.prg_ram_size();
         // TODO: chr ram?
         let nametable_v_mirror = nesfile.nametable_layout();
+
+        let battery = nesfile.battery();
 
         if nesfile.trainer() {
             unimplemented!("NROM trainer handling");
@@ -66,6 +78,7 @@ impl RealMapper for NROMMapper {
             prg_ram,
             chr_rom,
             nametable_v_mirror,
+            battery,
             open_bus: 0x00,
         }
     }
@@ -138,5 +151,9 @@ impl Mapper for NROMMapper {
             }
             _ => unreachable!(),
         }
+    }
+
+    fn battery(&self) -> bool {
+        self.battery
     }
 }

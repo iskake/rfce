@@ -314,8 +314,8 @@ impl MMC3Mapper {
         &self.prg_ram
     }
 
-    pub(crate) fn has_battery(&self) -> bool {
-        self.battery
+    pub(crate) fn sram_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.prg_ram
     }
 }
 
@@ -473,5 +473,9 @@ impl Mapper for MMC3Mapper {
             }
             _ => unreachable!(),
         }
+    }
+
+    fn battery(&self) -> bool {
+        self.battery
     }
 }

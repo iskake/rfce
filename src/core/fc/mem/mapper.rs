@@ -25,6 +25,7 @@ pub trait Mapper : Memory {
     fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8;
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> ();
     fn read_no_sideeffect(&self, addr: u16) -> u8;
+    fn battery(&self) -> bool;
 }
 
 // We can only create a mapper from a nes file if the mapper is actually "real".

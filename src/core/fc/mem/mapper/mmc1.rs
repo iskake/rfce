@@ -215,24 +215,8 @@ impl MMC1Mapper {
         &self.prg_ram
     }
 
-    pub(crate) fn replace_sram(&mut self, sram: Vec<u8>) -> Result<(), std::io::Error> {
-        if self.prg_ram.len() != sram.len() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Size of save RAM is incorrect, expected {} got {}",
-                    self.prg_ram.len(),
-                    sram.len()
-                )
-            ));
-        }
-
-        self.prg_ram = sram;
-        Ok(())
-    }
-
-    pub(crate) fn has_battery(&self) -> bool {
-        self.battery
+    pub(crate) fn sram_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.prg_ram
     }
 }
 
@@ -370,5 +354,9 @@ impl Mapper for MMC1Mapper {
             }
             _ => unreachable!()
         }
+    }
+
+    fn battery(&self) -> bool {
+        self.battery
     }
 }

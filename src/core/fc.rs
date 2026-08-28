@@ -102,6 +102,10 @@ impl FC {
         self.cpu.mem.input.update_from_controller_state(joy1, joy2);
     }
 
+    pub fn can_save(&self) -> bool {
+        self.cpu.mem.has_battery()
+    }
+
     pub fn load_save(&mut self, save_path: &Path) -> Result<(), std::io::Error> {
         self.cpu.mem.read_sram_from_file(save_path)
     }

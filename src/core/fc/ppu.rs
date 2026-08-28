@@ -54,7 +54,6 @@ struct Registers {
     mask: PPUMask,
     status: PPUStatus,
     oam_addr: u8,
-    oam_data: u8,
     x_y_scroll: u16,
     // vram_addr: u16,
     // vram_data: u8,
@@ -114,7 +113,6 @@ impl Registers {
             x_y_scroll: 0x0000,
             // vram_addr: 0x0000,
             // vram_data: 0x00,
-            oam_data: 0x00, //?
             oam_dma: 0x00,  //?
             // Internal
             io_bus: 0x00,
@@ -857,12 +855,12 @@ impl PPU {
                         5 => {
                             // "Pattern table tile low"
                             // TODO: this is basically just to get MMC3 IRQ working. Look into implementing it properly
-                            self.read_addr(0x1000, mem);
+                            self.read_addr(self.reg.control.spr_pattern_addr, mem);
                         } // 261
                         7 => {
                             // "Pattern table tile high"
                             // TODO: same again
-                            self.read_addr(0x1000, mem);
+                            self.read_addr(self.reg.control.spr_pattern_addr, mem);
                         } // 263
                         _ => {} // other
                     }

@@ -76,6 +76,10 @@ impl Mapper for DummyMapper {
     fn read_no_sideeffect(&self, addr: u16) -> u8 {
         self[(addr as usize) - MAPPER_START_ADDRESS]
     }
+
+    fn battery(&self) -> bool {
+        false
+    }
 }
 
 pub enum MapperImpl {
@@ -128,6 +132,15 @@ impl Mapper for MapperImpl {
             MapperImpl::NROM(m)   => m.nametable_write(addr, val, vram),
             MapperImpl::MMC1(m)   => m.nametable_write(addr, val, vram),
             MapperImpl::MMC3(m)   => m.nametable_write(addr, val, vram),
+        }
+    }
+
+    fn battery(&self) -> bool {
+        match self {
+            MapperImpl::DUMMY(m) => m.battery(),
+            MapperImpl::NROM(m)   => m.battery(),
+            MapperImpl::MMC1(m)   => m.battery(),
+            MapperImpl::MMC3(m)   => m.battery(),
         }
     }
 }
@@ -278,8 +291,8 @@ impl MemMap {
 
         let mapper = match self.mapper.as_ref() {
             MapperImpl::MMC3(m) => m.irq_triggered(),
-            // MBC5
-            // MBC6
+            // MMC5
+            // MMC6
             // FDS
             _ => false,
         };
@@ -290,27 +303,51 @@ impl MemMap {
     pub(crate) fn irq_un_trigger(&mut self) -> () {
         match self.mapper.as_mut() {
             MapperImpl::MMC3(m) => m.irq_un_trigger(),
-            // MBC5
-            // MBC6
+            // MMC5
+            // MMC6
             // FDS
             _ => {}
         };
     }
 
+    pub(crate) fn has_battery(&self) -> bool {
+        match self.mapper.as_ref() {
+            MapperImpl::NROM(m) => m.battery(),
+            MapperImpl::MMC1(m) => m.battery(),
+            MapperImpl::MMC3(m) => m.battery(),
+            _ => false,
+        }
+    }
+
     pub(crate) fn read_sram_from_file(&mut self, save_path: &std::path::Path) -> Result<(), std::io::Error> {
-        if self.mapper_can_save() {
+        if self.has_battery() {
             let mut buf = Vec::new();
             let mut file = File::open(save_path)?;
             file.read_to_end(&mut buf)?;
 
-            match self.mapper.as_mut() {
-                MapperImpl::MMC1(m) => m.replace_sram(buf)?,
-                MapperImpl::MMC3(m) => m.replace_sram(buf)?,
-                // MBC5
-                // MBC6
+            let prg_ram = match self.mapper.as_mut() {
+                MapperImpl::NROM(m) => m.sram_mut(),
+                MapperImpl::MMC1(m) => m.sram_mut(),
+                MapperImpl::MMC3(m) => m.sram_mut(),
+                // MMC5
+                // MMC6
                 // FDS
                 _ => unreachable!(),
             };
+
+            if prg_ram.len() != buf.len() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!(
+                        "Size of save RAM is incorrect, expected {} got {}",
+                        prg_ram.len(),
+                        buf.len()
+                    )
+                ));
+            }
+
+            *prg_ram = buf;
+            return Ok(());
         }
 
         Ok(())
@@ -318,10 +355,11 @@ impl MemMap {
 
     pub(crate) fn write_sram_to_file(&self, save_path: &std::path::Path) -> Result<(), std::io::Error>{
         let sram = match self.mapper.as_ref() {
+            MapperImpl::NROM(m) => Some(m.sram()),
             MapperImpl::MMC1(m) => Some(m.sram()),
             MapperImpl::MMC3(m) => Some(m.sram()),
-            // MBC5
-            // MBC6
+            // MMC5
+            // MMC6
             // FDS
             _ => None,
         };
@@ -332,14 +370,6 @@ impl MemMap {
             info!("Wrote save RAM to file: {save_path:?}");
         }
         Ok(())
-    }
-
-    fn mapper_can_save(&self) -> bool {
-        match self.mapper.as_ref() {
-            MapperImpl::MMC1(m) => m.has_battery(),
-            MapperImpl::MMC3(m) => m.has_battery(),
-            _ => false,
-        }
     }
 
     pub(crate) fn set_open_bus(&mut self, val: u8) {
