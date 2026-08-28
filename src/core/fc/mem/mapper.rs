@@ -1,4 +1,5 @@
 pub mod nrom;
+pub mod uxrom;
 pub mod mmc1;
 pub mod mmc3;
 
@@ -9,6 +10,7 @@ use super::Memory;
 #[derive(PartialEq, Debug)]
 pub enum MapperType {
     NROM,
+    UxROM,
     MMC1,
     MMC2,
     MMC3,

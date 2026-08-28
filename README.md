@@ -56,6 +56,7 @@ rfce can be easily built using [cargo](https://rust-lang.org/tools/install/):
 rfce has support for the following mappers:
 
 - NROM
+- UxROM
 - MMC1
 - MMC3
 

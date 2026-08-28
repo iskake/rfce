@@ -77,6 +77,7 @@ impl NESFile {
         match self.mapper_number() {
             0 => MapperType::NROM,
             1 | 105 | 155 => MapperType::MMC1,
+            2 | 94 | 180 => MapperType::UxROM,
             9 => MapperType::MMC2,
             4 => {
                 match self.submapper_number() {

@@ -425,6 +425,12 @@ impl PPU {
     }
 
     pub fn read_addr_no_sideeffect(&self, addr: u16, mem: &MemMap) -> u8 {
+        if addr > 0x3fff {
+            log::info!("Read from unavailable PPU address: {addr:04x}")
+        }
+
+        let addr = addr & 0x3fff;
+
         match addr {
             0x0000..=0x1fff => mem.mapper.read_chr(addr),
             0x2000..=0x2fff => mem.mapper.nametable_read(addr, self.vram),
@@ -435,6 +441,12 @@ impl PPU {
     }
 
     pub fn write_addr(&mut self, addr: u16, val: u8, mem: &mut MemMap) -> () {
+        if addr > 0x3fff {
+            log::info!("Write to unavailable PPU address: {addr:04x}")
+        }
+
+        let addr = addr & 0x3fff;
+
         self.update_addr_bus(addr, mem);
 
         match addr {
