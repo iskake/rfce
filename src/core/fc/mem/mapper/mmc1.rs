@@ -1,6 +1,6 @@
 use log::{debug, info};
 
-use crate::fc::mem::{self, Memory, NametableArrangement, cart::NESFile, mapper::{Mapper, MapperType::{self}, RealMapper, mmc1::CHRBankMode::Switch8K}};
+use crate::core::fc::mem::{self, Memory, NametableArrangement, cart::NESFile, mapper::{Mapper, MapperType::{self}, RealMapper, mmc1::CHRBankMode::Switch8K}};
 
 const PRG_BANK_SIZE: usize = 0x4000;
 const CHR_BANK_SIZE: usize = 0x1000;
@@ -323,11 +323,11 @@ impl Mapper for MMC1Mapper {
         }
     }
 
-    fn nametable_read(&self, addr: u16, vram: [u8; crate::fc::ppu::VRAM_SIZE]) -> u8 {
+    fn nametable_read(&self, addr: u16, vram: [u8; crate::core::fc::ppu::VRAM_SIZE]) -> u8 {
         vram[self.nametable_arrange.nametable_addr_fix(addr) as usize]
     }
 
-    fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; crate::fc::ppu::VRAM_SIZE]) -> () {
+    fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; crate::core::fc::ppu::VRAM_SIZE]) -> () {
         vram[self.nametable_arrange.nametable_addr_fix(addr) as usize] = val
     }
 

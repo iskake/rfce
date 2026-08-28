@@ -5,7 +5,7 @@ use std::{
     fs::File, io::{self, Error, Read}, path::Path
 };
 
-use crate::{bits::Bitwise, fc::mem::mapper::MapperType};
+use crate::{bits::Bitwise, core::fc::mem::mapper::MapperType};
 
 const NES_FILE_IDENTIFIER: [u8; 4] = [b'N', b'E', b'S', 0x1a];
 

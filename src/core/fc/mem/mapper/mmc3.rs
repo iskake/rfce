@@ -1,6 +1,6 @@
 use log::{debug, info};
 
-use crate::fc::{
+use crate::core::fc::{
     mem::{
         Memory,
         NametableArrangement::{self, FourScreen},
@@ -66,7 +66,7 @@ pub struct MMC3Mapper {
 }
 
 impl RealMapper for MMC3Mapper {
-    fn from_nesfile(nesfile: &crate::fc::mem::cart::NESFile) -> Self {
+    fn from_nesfile(nesfile: &crate::core::fc::mem::cart::NESFile) -> Self {
         assert!(nesfile.mapper_type() == MapperType::MMC3);
         let prg_rom_size = nesfile.prg_rom_size();
         let battery = nesfile.battery();

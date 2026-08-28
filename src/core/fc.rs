@@ -3,10 +3,10 @@ use std::path::Path;
 
 use mem::MemMap;
 
-use crate::fc::cpu::*;
-use crate::fc::input::StandardControllerState;
-use crate::fc::mem::cart::*;
-use crate::fc::ppu::*;
+use crate::core::fc::cpu::*;
+use crate::core::fc::input::StandardControllerState;
+use crate::core::fc::mem::cart::*;
+use crate::core::fc::ppu::*;
 
 pub mod cpu;
 pub mod ppu;

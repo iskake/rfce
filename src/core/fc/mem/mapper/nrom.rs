@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::fc::{
+use crate::core::fc::{
     mem::{
         Memory,
         cart::NESFile,

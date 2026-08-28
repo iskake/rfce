@@ -6,9 +6,9 @@ use log::{info, warn};
 use mapper::nrom::NROMMapper;
 use mapper::{Mapper, RealMapper};
 
-use crate::fc::input::Controller;
-use crate::fc::mem::mapper::mmc1::MMC1Mapper;
-use crate::fc::mem::mapper::mmc3::MMC3Mapper;
+use crate::core::fc::input::Controller;
+use crate::core::fc::mem::mapper::mmc1::MMC1Mapper;
+use crate::core::fc::mem::mapper::mmc3::MMC3Mapper;
 
 pub mod cart;
 pub mod mapper;
@@ -229,6 +229,7 @@ impl MemMap {
             mapper::MapperType::MMC4 => unsupported_mapper!("MMC4"),
             mapper::MapperType::MMC5 => unsupported_mapper!("MMC5"),
             mapper::MapperType::MMC6 => unsupported_mapper!("MMC6"),
+            mapper::MapperType::FDS  => unsupported_mapper!("DISK SYSTEM"),
             mapper::MapperType::UNKNOWN(i) => unsupported_mapper!(format!("{i:03}")),
         }
     }

@@ -2,8 +2,8 @@ use inst::*;
 use log::*;
 
 use crate::bits::{Addr, Bitwise, as_address};
-use crate::fc::apu::APU;
-use crate::fc::mem::*;
+use crate::core::fc::apu::APU;
+use crate::core::fc::mem::*;
 
 use super::PPU;
 

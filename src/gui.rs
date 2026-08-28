@@ -11,7 +11,7 @@ use sdl3::{
     video::Window,
 };
 
-use crate::fc::{FC, input::StandardControllerState, ppu};
+use crate::core::fc::{FC, input::StandardControllerState, ppu};
 
 pub struct GUI {
     canvas: Canvas<Window>,

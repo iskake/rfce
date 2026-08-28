@@ -1,11 +1,11 @@
 use std::{env, path::Path};
 
-use fc::dbg::Debugger;
+use core::fc::dbg::Debugger;
 use gui::GUI;
 use log::info;
 
 pub mod bits;
-pub mod fc;
+pub mod core;
 pub mod gui;
 
 fn main() -> Result<(), String> {

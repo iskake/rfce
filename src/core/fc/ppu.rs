@@ -6,7 +6,7 @@ use rgb::*;
 use sprite::Sprite;
 use tile::Tile;
 
-use crate::{bits::Bitwise, fc::mem::mapper::Mapper};
+use crate::{bits::Bitwise, core::fc::mem::mapper::Mapper};
 
 use super::{CPU_FREQ, mem::MemMap};
 

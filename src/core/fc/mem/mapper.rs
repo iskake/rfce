@@ -2,7 +2,7 @@ pub mod nrom;
 pub mod mmc1;
 pub mod mmc3;
 
-use crate::fc::{mem::cart::NESFile, ppu};
+use crate::core::fc::{mem::cart::NESFile, ppu};
 
 use super::Memory;
 
@@ -15,6 +15,7 @@ pub enum MapperType {
     MMC4,
     MMC5,
     MMC6,
+    FDS,
     UNKNOWN(u16),
 }
 
