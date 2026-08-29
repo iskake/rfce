@@ -275,7 +275,7 @@ impl GUI {
             // Load ROM
             Event::KeyDown { keycode: Some(Keycode::O), .. } => {
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter(".NES ROM file", &["nes"])
+                    .add_filter(".NES ROM file", &["nes", "NES"])
                     .pick_file()
                 {
                     self.save_savefile();

@@ -14,7 +14,7 @@ fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
 
     let headless = args.contains(&"--headless".to_owned());
-    let last_arg_is_nes_file = args[args.len() - 1].ends_with(".nes");
+    let last_arg_is_nes_file = args[args.len() - 1].to_lowercase().ends_with(".nes");
 
     if headless {
         if last_arg_is_nes_file {
