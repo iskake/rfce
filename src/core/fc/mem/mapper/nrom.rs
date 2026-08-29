@@ -46,10 +46,6 @@ impl RealMapper for NROMMapper {
 
         let battery = nesfile.battery();
 
-        if nesfile.trainer() {
-            unimplemented!("NROM trainer handling");
-        }
-
         info!("NROM with:");
         info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
         info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);

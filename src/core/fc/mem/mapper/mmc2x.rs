@@ -89,10 +89,6 @@ impl RealMapper for MMC2Mapper {
         };
         let nametable_arrange = nesfile.nametable_layout();
 
-        if nesfile.trainer() {
-            unimplemented!("MMC2 trainer handling");
-        }
-
         info!("{board_type:?} with:");
         info!(
             "  PRG-ROM SIZE: {} (0x{:x}) {} banks",

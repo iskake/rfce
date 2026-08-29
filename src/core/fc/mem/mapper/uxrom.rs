@@ -49,10 +49,6 @@ impl RealMapper for UxROMMapper {
 
         let nametable_arrange = nesfile.nametable_layout();
 
-        if nesfile.trainer() {
-            unimplemented!("UxROM trainer handling");
-        }
-
         info!("UxROM with:");
         info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
         info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);

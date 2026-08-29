@@ -135,10 +135,10 @@ impl NESFile {
         self.header.flags6.test_bit(2)
     }
 
-    /// Whether a 512-bit trainer is present according to byte 6 of the header
-    ///
-    /// - `0`: not present
-    /// - `1`: "present between header and PRG-ROM data"
+    /// Whether to use alternative nametable arrangements, according to byte 6 of the header
+    /// 
+    /// - `0`: uses vertical / horizontal arrangement
+    /// - `1`: uses some other arrangement depending on the mapper
     pub fn alt_nametable_layout(&self) -> bool {
         self.header.flags6.test_bit(3)
     }
