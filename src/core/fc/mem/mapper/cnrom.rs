@@ -122,11 +122,14 @@ impl Memory for CNROMMapper {
 
         if addr >= 0x8000 {
             match self.board_type {
-                // ? Should we assume "unknown" bus conflict means AND-type or that there are none?
-                // ? Here we assume there are no conflicts (in case of e.g. an old ROM hack assuming there are no conflicts)
-                INES003NonBusConflict => self.bank_reg = val & 0b11_0011,
+               INES003NonBusConflict => self.bank_reg = val & 0b11_0011,
                 INES003AndBusConflict
+                // Here we assume AND-type bus conflicts for submapper 0 ("unknown"),
+                // since "the original board is always subject to [them]".
+                // (https://www.nesdev.org/wiki/CNROM#Regular_mapper_3_with_up_to_32_KiB)
                 | INES003UnkBusConflict 
+                // Same for mapper 185: "[it] always has AND-type bus conflicts."
+                // (https://www.nesdev.org/wiki/CNROM#Mapper_185)
                 | INES185Sub0
                 | INES185Sub4
                 | INES185Sub5
