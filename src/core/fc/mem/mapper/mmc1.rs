@@ -1,6 +1,18 @@
 use log::{debug, info};
 
-use crate::core::fc::mem::{self, Memory, NametableArrangement, cart::NESFile, mapper::{Mapper, MapperType::{self}, RealMapper, mmc1::CHRBankMode::Switch8K}};
+use crate::{
+    bits::Bitwise,
+    core::fc::mem::{
+        self, Memory, NametableArrangement,
+        cart::NESFile,
+        mapper::{
+            Mapper,
+            MapperType::{self},
+            RealMapper,
+            mmc1::CHRBankMode::Switch8K,
+        },
+    },
+};
 
 const PRG_BANK_SIZE: usize = 0x4000;
 const CHR_BANK_SIZE: usize = 0x1000;
@@ -16,6 +28,13 @@ enum PRGBankMode {
 enum CHRBankMode {
     Switch8K,
     Switch2x4K,
+}
+
+#[derive(Debug)]
+enum MMCVariety {
+    MMC1B,
+    MMC1A,
+    SxROM,  // TODO
 }
 
 struct Registers {
@@ -37,7 +56,9 @@ pub struct MMC1Mapper {
     chr_bank_mode: CHRBankMode,
     nametable_arrange: NametableArrangement,
     reg: Registers,
+    mmc_variety: MMCVariety,
     pub(crate) open_bus: u8,
+    mmc1ab_r: bool,
 }
 
 impl RealMapper for MMC1Mapper {
@@ -64,13 +85,31 @@ impl RealMapper for MMC1Mapper {
 
         let nametable_arrange = nesfile.nametable_layout();
 
+        let mmc_variety = match nesfile.mapper_number() {
+            // TODO: submappers
+            1 => {
+                match nesfile.submapper_number() {
+                    5 => MMCVariety::SxROM,
+                    _ => MMCVariety::MMC1B
+                }
+            },
+            155 => MMCVariety::MMC1A,
+            _ => panic!("Invalid mapper: {:03}", nesfile.mapper_number()),
+        };
+
         info!("MMC1 with:");
-        info!("  PRG-ROM SIZE: {} (0x{:x}); {} banks", prg_rom_size, prg_rom_size, prg_rom_size / PRG_BANK_SIZE);
+        info!(
+            "  PRG-ROM SIZE: {} (0x{:x}); {} banks",
+            prg_rom_size,
+            prg_rom_size,
+            prg_rom_size / PRG_BANK_SIZE
+        );
         info!("  PRG-RAM SIZE: {} (0x{:x})", prg_ram_size, prg_ram_size);
         info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
         info!("  CHR-RAM SIZE: {} (0x{:x})", chr_ram_size, chr_ram_size);
         info!("  BATTERY: {}", battery);
         info!("  Nametable mirroring: {:?}", nametable_arrange);
+        info!("  Mapper variety: {:?}", mmc_variety);
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let prg_ram = vec![0; prg_ram_size];
@@ -78,7 +117,10 @@ impl RealMapper for MMC1Mapper {
         // TODO: possible to have both?
         let (chr_rxm, chr_writable) = if chr_rom_size != 0 {
             // CHR ROM
-            (nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec(), false)
+            (
+                nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec(),
+                false,
+            )
         } else if chr_ram_size != 0 {
             // CHR RAM
             (vec![0; chr_ram_size], true)
@@ -108,6 +150,8 @@ impl RealMapper for MMC1Mapper {
             },
             prg_bank_mode,
             chr_bank_mode,
+            mmc_variety,
+            mmc1ab_r: false,
 
             open_bus: 0x00,
         }
@@ -116,9 +160,9 @@ impl RealMapper for MMC1Mapper {
 
 impl MMC1Mapper {
     fn write_control(&mut self, val: u8) -> () {
-        use mem::NametableArrangement::*;
-        use PRGBankMode::*;
         use CHRBankMode::*;
+        use PRGBankMode::*;
+        use mem::NametableArrangement::*;
 
         self.reg.control = val & 0b11111;
 
@@ -138,7 +182,7 @@ impl MMC1Mapper {
         };
 
         match self.prg_bank_mode {
-            FixAll => {},
+            FixAll => {}
             FixFirst => self.reg.prg_bank0 = 0,
             FixLast => self.reg.prg_bank1 = (self.prg_rom.len() / PRG_BANK_SIZE) - 1,
         }
@@ -170,16 +214,18 @@ impl MMC1Mapper {
     }
 
     fn write_prg_bank(&mut self, val: u8) -> () {
-        // TODO: MMC1A and MMC1B use highest bit (0b10000) to mean different things
+        // TODO: MMC1A fixed bank handling
+        self.mmc1ab_r = val.test_bit(4);
+
         match self.prg_bank_mode {
-            PRGBankMode::FixAll   => self.reg.prg_bank0 = val as usize & 0b01110,
-            PRGBankMode::FixLast  => self.reg.prg_bank0 = val as usize & 0b01111,
+            PRGBankMode::FixAll => self.reg.prg_bank0 = val as usize & 0b01110,
+            PRGBankMode::FixLast => self.reg.prg_bank0 = val as usize & 0b01111,
             PRGBankMode::FixFirst => self.reg.prg_bank1 = val as usize & 0b01111,
         }
 
         match self.prg_bank_mode {
-            PRGBankMode::FixAll   => debug!("Set PRG bank 0 (both) to {0} (0x{0:02x}, 0b{0:08b})", val & 0b01110),
-            PRGBankMode::FixLast  => debug!("Set PRG bank 0 (single) to {0} (0x{0:02x}, 0b{0:08b})", val & 0b01111),
+            PRGBankMode::FixAll => debug!("Set PRG bank 0 (both) to {0} (0x{0:02x}, 0b{0:08b})", val & 0b01110),
+            PRGBankMode::FixLast => debug!("Set PRG bank 0 (single) to {0} (0x{0:02x}, 0b{0:08b})", val & 0b01111),
             PRGBankMode::FixFirst => debug!("Set PRG bank 1 (single) to {0} (0x{0:02x}, 0b{0:08b})", val & 0b01111),
         }
     }
@@ -213,6 +259,14 @@ impl MMC1Mapper {
     pub(crate) fn sram_mut(&mut self) -> &mut Vec<u8> {
         &mut self.prg_ram
     }
+
+    fn prg_ram_disabled(&self) -> bool {
+        if let MMCVariety::MMC1B = self.mmc_variety {
+            self.mmc1ab_r
+        } else {
+            false
+        }
+    }
 }
 
 impl Memory for MMC1Mapper {
@@ -222,8 +276,11 @@ impl Memory for MMC1Mapper {
 
     fn write(&mut self, addr: u16, val: u8) -> () {
         if addr >= 0x6000 && addr < 0x8000 {
-            // TODO: handle writes when no ram.
             // Write to PRG RAM
+            if self.prg_ram.len() == 0 || self.prg_ram_disabled() {
+                return;
+            }
+
             self.prg_ram[(addr - 0x6000) as usize] = val;
             return;
         }
@@ -268,7 +325,7 @@ impl Mapper for MMC1Mapper {
         self.read_chr_no_sideeffect(addr)
     }
 
-    fn read_chr_no_sideeffect(&self,addr: u16) -> u8 {
+    fn read_chr_no_sideeffect(&self, addr: u16) -> u8 {
         if self.chr_rxm.len() == 0 {
             return 0xff;
         }
@@ -321,16 +378,16 @@ impl Mapper for MMC1Mapper {
             0x4020..=0x5fff => {
                 info!("Open bus read at ${addr:04x}");
                 self.open_bus
-            },
+            }
             0x6000..=0x7fff => {
                 // "8KB PRG-RAM bank (optional)"
-                if self.prg_ram.len() == 0 {
+                if self.prg_ram.len() == 0 || self.prg_ram_disabled() {
                     info!("Open bus read at ${addr:04x}");
                     return self.open_bus;
                 }
 
                 self.prg_ram[(addr - 0x6000) as usize]
-            },
+            }
             0x8000..=0xbfff => {
                 // "16KB PRG-ROM bank, either switchable or fixed to the first bank"
                 let bank = if let PRGBankMode::FixAll = self.prg_bank_mode {
@@ -351,7 +408,7 @@ impl Mapper for MMC1Mapper {
 
                 self.prg_rom[bank_addr!(PRG; addr, start_addr, (bank % banks))]
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
