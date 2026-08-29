@@ -63,11 +63,7 @@ impl RealMapper for MMC1Mapper {
         let chr_ram_size = nesfile.chr_ram_size();
 
 
-        let nametable_arrange = if nesfile.nametable_layout() {
-            NametableArrangement::HorizontalMirroring
-        } else {
-            NametableArrangement::VerticalMirroring
-        };
+        let nametable_arrange = nesfile.nametable_layout();
 
         info!("MMC1 with:");
         info!("  PRG-ROM SIZE: {} (0x{:x}); {} banks", prg_rom_size, prg_rom_size, prg_rom_size / PRG_BANK_SIZE);

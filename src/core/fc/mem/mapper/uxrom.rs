@@ -3,6 +3,7 @@ use log::info;
 use crate::core::fc::{
     mem::{
         Memory,
+        NametableArrangement::{self},
         cart::NESFile,
         mapper::{Mapper, MapperType, RealMapper},
     },
@@ -23,19 +24,8 @@ pub struct UxROMMapper {
 
     prg_rom: Vec<u8>,
     chr_ram: Vec<u8>,
-    nametable_v_mirror: bool,
+    nametable_arrange: NametableArrangement,
     pub(crate) open_bus: u8,
-}
-
-impl UxROMMapper {
-    fn nametable_addr_fix(&self, addr: u16) -> u16 {
-        let a = addr & 0xfff;
-        if self.nametable_v_mirror {
-            a & 0x7ff
-        } else {
-            ((a & 0x800) >> 1) | (a & 0x3ff)
-        }
-    }
 }
 
 impl RealMapper for UxROMMapper {
@@ -44,7 +34,7 @@ impl RealMapper for UxROMMapper {
 
         let board_type = match nesfile.mapper_number() {
             // TODO: submappers
-            2 => UxROMVariety::UxROM, 
+            2 => UxROMVariety::UxROM,
             94 => UxROMVariety::UN1ROM,
             180 => UxROMVariety::INES180,
             _ => unreachable!(),
@@ -56,7 +46,8 @@ impl RealMapper for UxROMMapper {
         } else {
             nesfile.chr_rom_size()
         };
-        let nametable_v_mirror = nesfile.nametable_layout();
+
+        let nametable_arrange = nesfile.nametable_layout();
 
         if nesfile.trainer() {
             unimplemented!("UxROM trainer handling");
@@ -65,11 +56,7 @@ impl RealMapper for UxROMMapper {
         info!("UxROM with:");
         info!("  PRG-ROM SIZE: {} (0x{:x})", prg_rom_size, prg_rom_size);
         info!("  CHR-ROM SIZE: {} (0x{:x})", chr_rom_size, chr_rom_size);
-        info!(
-            "  Nametable mirroring: {} ({} arrangement)",
-            if nametable_v_mirror { "vertical" } else { "horizontal" },
-            if nametable_v_mirror { "horizontal" } else { "vertical" }
-        );
+        info!("  Nametable mirroring: {:?}", nametable_arrange);
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let chr_ram = vec![0; prg_rom_size];
@@ -79,7 +66,7 @@ impl RealMapper for UxROMMapper {
             bank: 0x00, // ?
             prg_rom,
             chr_ram,
-            nametable_v_mirror,
+            nametable_arrange,
             open_bus: 0x00,
         }
     }
@@ -116,12 +103,12 @@ impl Mapper for UxROMMapper {
     }
 
     fn nametable_read(&self, addr: u16, vram: [u8; ppu::VRAM_SIZE]) -> u8 {
-        let addr = self.nametable_addr_fix(addr);
+        let addr = self.nametable_arrange.nametable_addr_fix(addr);
         vram[addr as usize]
     }
 
     fn nametable_write(&mut self, addr: u16, val: u8, vram: &mut [u8; ppu::VRAM_SIZE]) -> () {
-        let addr = self.nametable_addr_fix(addr);
+        let addr = self.nametable_arrange.nametable_addr_fix(addr);
         vram[addr as usize] = val;
     }
 

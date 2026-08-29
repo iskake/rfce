@@ -5,7 +5,7 @@ use std::{
     fs::File, io::{self, Error, Read}, path::Path
 };
 
-use crate::{bits::Bitwise, core::fc::mem::mapper::MapperType};
+use crate::{bits::Bitwise, core::fc::mem::{NametableArrangement, mapper::MapperType}};
 
 const NES_FILE_IDENTIFIER: [u8; 4] = [b'N', b'E', b'S', 0x1a];
 
@@ -101,9 +101,21 @@ impl NESFile {
 
     /// Nametable layout according to byte 6 of the header
     ///
+    /// - horizontal mirroring if the value is `0` (vertical arrangement)
+    /// - vertical mirroring if the value is `1` (horizontal arrangement)
+    pub fn nametable_layout(&self) -> NametableArrangement {
+        if self.header.flags6.test_bit(0) {
+            NametableArrangement::VerticalMirroring
+        } else {
+            NametableArrangement::HorizontalMirroring
+        }
+    }
+
+    /// Nametable layout (as an int) according to byte 6 of the header
+    ///
     /// - `0`: horizontal mirror (vertical arrangement) / mapper controlled
     /// - `1`: vertical mirror (horizontal arrangement)
-    pub fn nametable_layout(&self) -> bool {
+    pub fn nametable_layout_int(&self) -> bool {
         self.header.flags6.test_bit(0)
     }
 

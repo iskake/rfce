@@ -87,11 +87,7 @@ impl RealMapper for MMC2Mapper {
         } else {
             nesfile.chr_rom_size()
         };
-        let nametable_arrange = if nesfile.nametable_layout() {
-            VerticalMirroring
-        } else {
-            HorizontalMirroring
-        };
+        let nametable_arrange = nesfile.nametable_layout();
 
         if nesfile.trainer() {
             unimplemented!("MMC2 trainer handling");

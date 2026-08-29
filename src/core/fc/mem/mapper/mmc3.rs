@@ -88,10 +88,8 @@ impl RealMapper for MMC3Mapper {
 
         let nametable_arrange = if nesfile.alt_nametable_layout() {
             NametableArrangement::FourScreen
-        } else if nesfile.nametable_layout() {
-            NametableArrangement::HorizontalMirroring
         } else {
-            NametableArrangement::VerticalMirroring
+            nesfile.nametable_layout()
         };
 
         info!("MMC3 with:");
