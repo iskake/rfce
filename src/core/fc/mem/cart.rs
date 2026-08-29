@@ -78,6 +78,7 @@ impl NESFile {
             0 => MapperType::NROM,
             1 | 105 | 155 => MapperType::MMC1,
             2 | 94 | 180 => MapperType::UxROM,
+            3 | 185 => MapperType::CNROM,
             9 => MapperType::MMC2,
             4 => {
                 match self.submapper_number() {
@@ -158,7 +159,7 @@ impl NESFile {
     /// Get the submapper number stored in byte 7 of the header (NES2.0 only)
     pub fn submapper_number(&self) -> u8 {
         if self.is_nes20_format() {
-            (self.header.flags7 & 0xf0) >> 4
+            (self.header.flags8 & 0xf0) >> 4
         } else {
             0
         }
@@ -195,6 +196,16 @@ impl NESFile {
         }
     }
 
+    pub fn prg_rom_size_or_default(&self, default: usize) -> usize {
+        let size = self.prg_rom_size();
+
+        if size == 0 {
+            default
+        } else {
+            size
+        }
+    }
+
     /// Get the size of CHR-ROM in bytes
     pub fn chr_rom_size(&self) -> usize {
         if !self.is_nes20_format() {
@@ -212,6 +223,16 @@ impl NESFile {
                 let val = ((self.header.flags9 as usize & 0xf0) << 4) | self.header.chr_rom_size_lsb as usize;
                 val * 0x2000
             }
+        }
+    }
+
+    pub fn chr_rom_size_or_default(&self, default: usize) -> usize {
+        let size = self.chr_rom_size();
+
+        if size == 0 {
+            default
+        } else {
+            size
         }
     }
 

@@ -62,7 +62,6 @@ impl RealMapper for MMC1Mapper {
         let chr_rom_size = nesfile.chr_rom_size();
         let chr_ram_size = nesfile.chr_ram_size();
 
-
         let nametable_arrange = nesfile.nametable_layout();
 
         info!("MMC1 with:");

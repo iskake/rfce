@@ -41,11 +41,7 @@ impl RealMapper for UxROMMapper {
         };
 
         let prg_rom_size = nesfile.prg_rom_size();
-        let chr_rom_size = if nesfile.chr_rom_size() == 0 {
-            0x2000
-        } else {
-            nesfile.chr_rom_size()
-        };
+        let chr_rom_size = nesfile.chr_rom_size_or_default(0x2000);
 
         let nametable_arrange = nesfile.nametable_layout();
 

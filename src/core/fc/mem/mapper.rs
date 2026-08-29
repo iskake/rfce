@@ -1,5 +1,6 @@
 pub mod nrom;
 pub mod uxrom;
+pub mod cnrom;
 pub mod mmc1;
 pub mod mmc2x;
 pub mod mmc3;
@@ -12,6 +13,7 @@ use super::Memory;
 pub enum MapperType {
     NROM,
     UxROM,
+    CNROM,
     MMC1,
     MMC2,
     MMC3,

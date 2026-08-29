@@ -5,6 +5,7 @@ use cart::NESFile;
 use log::{info, warn};
 use mapper::nrom::NROMMapper;
 use mapper::uxrom::UxROMMapper;
+use mapper::cnrom::CNROMMapper;
 use mapper::mmc1::MMC1Mapper;
 use mapper::mmc2x::MMC2Mapper;
 use mapper::mmc3::MMC3Mapper;
@@ -92,6 +93,7 @@ pub enum MapperImpl {
     DUMMY(DummyMapper),
     NROM(NROMMapper),
     UxROM(UxROMMapper),
+    CNROM(CNROMMapper),
     MMC1(MMC1Mapper),
     MMC2(MMC2Mapper),
     MMC3(MMC3Mapper),
@@ -103,6 +105,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.read_no_sideeffect(addr),
             MapperImpl::NROM(m)   => m.read_no_sideeffect(addr),
             MapperImpl::UxROM(m) => m.read_no_sideeffect(addr),
+            MapperImpl::CNROM(m) => m.read_no_sideeffect(addr),
             MapperImpl::MMC1(m)   => m.read_no_sideeffect(addr),
             MapperImpl::MMC2(m)   => m.read_no_sideeffect(addr),
             MapperImpl::MMC3(m)   => m.read_no_sideeffect(addr),
@@ -114,6 +117,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.read_chr(addr),
             MapperImpl::NROM(m)   => m.read_chr(addr),
             MapperImpl::UxROM(m) => m.read_chr(addr),
+            MapperImpl::CNROM(m) => m.read_chr(addr),
             MapperImpl::MMC1(m)   => m.read_chr(addr),
             MapperImpl::MMC2(m)   => m.read_chr(addr),
             MapperImpl::MMC3(m)   => m.read_chr(addr),
@@ -125,6 +129,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.read_chr_no_sideeffect(addr),
             MapperImpl::NROM(m)   => m.read_chr_no_sideeffect(addr),
             MapperImpl::UxROM(m) => m.read_chr_no_sideeffect(addr),
+            MapperImpl::CNROM(m) => m.read_chr_no_sideeffect(addr),
             MapperImpl::MMC1(m)   => m.read_chr_no_sideeffect(addr),
             MapperImpl::MMC2(m)   => m.read_chr_no_sideeffect(addr),
             MapperImpl::MMC3(m)   => m.read_chr_no_sideeffect(addr),
@@ -136,6 +141,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.write_chr(addr, val),
             MapperImpl::NROM(m)   => m.write_chr(addr, val),
             MapperImpl::UxROM(m) => m.write_chr(addr, val),
+            MapperImpl::CNROM(m) => m.write_chr(addr, val),
             MapperImpl::MMC1(m)   => m.write_chr(addr, val),
             MapperImpl::MMC2(m)   => m.write_chr(addr, val),
             MapperImpl::MMC3(m)   => m.write_chr(addr, val),
@@ -147,6 +153,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.nametable_read(addr, vram),
             MapperImpl::NROM(m)   => m.nametable_read(addr, vram),
             MapperImpl::UxROM(m) => m.nametable_read(addr, vram),
+            MapperImpl::CNROM(m) => m.nametable_read(addr, vram),
             MapperImpl::MMC1(m)   => m.nametable_read(addr, vram),
             MapperImpl::MMC2(m)   => m.nametable_read(addr, vram),
             MapperImpl::MMC3(m)   => m.nametable_read(addr, vram),
@@ -158,6 +165,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.nametable_write(addr, val, vram),
             MapperImpl::NROM(m)   => m.nametable_write(addr, val, vram),
             MapperImpl::UxROM(m) => m.nametable_write(addr, val, vram),
+            MapperImpl::CNROM(m) => m.nametable_write(addr, val, vram),
             MapperImpl::MMC1(m)   => m.nametable_write(addr, val, vram),
             MapperImpl::MMC2(m)   => m.nametable_write(addr, val, vram),
             MapperImpl::MMC3(m)   => m.nametable_write(addr, val, vram),
@@ -169,6 +177,7 @@ impl Mapper for MapperImpl {
             MapperImpl::DUMMY(m) => m.battery(),
             MapperImpl::NROM(m)   => m.battery(),
             MapperImpl::UxROM(m) => m.battery(),
+            MapperImpl::CNROM(m) => m.battery(),
             MapperImpl::MMC1(m)   => m.battery(),
             MapperImpl::MMC2(m)   => m.battery(),
             MapperImpl::MMC3(m)   => m.battery(),
@@ -182,6 +191,7 @@ impl Memory for MapperImpl {
             MapperImpl::DUMMY(m) => m.read(addr),
             MapperImpl::NROM(m)   => m.read(addr),
             MapperImpl::UxROM(m) => m.read(addr),
+            MapperImpl::CNROM(m) => m.read(addr),
             MapperImpl::MMC1(m)   => m.read(addr),
             MapperImpl::MMC2(m)   => m.read(addr),
             MapperImpl::MMC3(m)   => m.read(addr),
@@ -193,6 +203,7 @@ impl Memory for MapperImpl {
             MapperImpl::DUMMY(m) => m.write(addr, val),
             MapperImpl::NROM(m)   => m.write(addr, val),
             MapperImpl::UxROM(m) => m.write(addr, val),
+            MapperImpl::CNROM(m) => m.write(addr, val),
             MapperImpl::MMC1(m)   => m.write(addr, val),
             MapperImpl::MMC2(m)   => m.write(addr, val),
             MapperImpl::MMC3(m)   => m.write(addr, val),
@@ -272,13 +283,14 @@ impl MemMap {
         match nesfile.mapper_type() {
             mapper::MapperType::NROM => create_mapper!(NROM, NROMMapper, nesfile),
             mapper::MapperType::UxROM=> create_mapper!(UxROM, UxROMMapper, nesfile),
+            mapper::MapperType::CNROM=> create_mapper!(CNROM, CNROMMapper, nesfile),
             mapper::MapperType::MMC1 => create_mapper!(MMC1, MMC1Mapper, nesfile),
             mapper::MapperType::MMC2 => create_mapper!(MMC2, MMC2Mapper, nesfile),
             mapper::MapperType::MMC3 => create_mapper!(MMC3, MMC3Mapper, nesfile),
             mapper::MapperType::MMC4 => create_mapper!(MMC2, MMC2Mapper, nesfile),
             mapper::MapperType::MMC5 => unsupported_mapper!("MMC5"),
             mapper::MapperType::MMC6 => unsupported_mapper!("MMC6"),
-            mapper::MapperType::FDS  => unsupported_mapper!("DISK SYSTEM"),
+            mapper::MapperType::FDS  => unsupported_mapper!("DISK SYSTEM"), // TODO: fds uses the .fds file format instead of .nes
             mapper::MapperType::UNKNOWN(i) => unsupported_mapper!(format!("{i:03}")),
         }
     }
@@ -365,11 +377,10 @@ impl MemMap {
             let prg_ram = match self.mapper.as_mut() {
                 MapperImpl::NROM(m) => m.sram_mut(),
                 MapperImpl::MMC1(m) => m.sram_mut(),
-                // MapperImpl::MMC2(m) => m.sram_mut(),
                 MapperImpl::MMC3(m) => m.sram_mut(),
                 // MMC5
                 // MMC6
-                // FDS
+                // ? FDS ?
                 _ => unreachable!(),
             };
 
