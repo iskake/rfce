@@ -101,8 +101,8 @@ impl NESFile {
 
     /// Nametable layout according to byte 6 of the header
     ///
-    /// - `0`: vertical arrangement (horizontal mirror) / mapper controlled
-    /// - `1`: horizontal arrangement (vertical mirror)
+    /// - `0`: horizontal mirror (vertical arrangement) / mapper controlled
+    /// - `1`: vertical mirror (horizontal arrangement)
     pub fn nametable_layout(&self) -> bool {
         self.header.flags6.test_bit(0)
     }
