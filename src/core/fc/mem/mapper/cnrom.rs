@@ -94,7 +94,17 @@ impl RealMapper for CNROMMapper {
 
         let prg_rom = nesfile.data[0..prg_rom_size].to_vec();
         let prg_ram = vec![0; prg_ram_size];
-        let chr_rom = nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec();
+        let chr_rom = if nesfile.data.len() < prg_rom_size + chr_rom_size {
+            let actual_size = nesfile.data.len();
+            let claimed_size = prg_rom_size + chr_rom_size;
+            info!("  INCORRECT DATA IN NES FILE!");
+            info!("    claimed ROM size: {0} (${0:x})", claimed_size);
+            info!("    actual ROM size:  {0} (${0:x})", actual_size);
+            info!("    difference:       {0} (${0:x})", claimed_size - actual_size);
+            nesfile.data[prg_rom_size..].to_vec()
+        } else {
+            nesfile.data[prg_rom_size..(prg_rom_size + chr_rom_size)].to_vec()
+        };
 
         CNROMMapper {
             board_type,
@@ -164,7 +174,7 @@ impl Mapper for CNROMMapper {
         match self.board_type {
             INES003UnkBusConflict
             | INES003NonBusConflict
-            | INES003AndBusConflict => self.chr_rom[(self.bank_reg as usize & 0b11) * BANK_SIZE + addr as usize] ,
+            | INES003AndBusConflict => self.chr_rom[((self.bank_reg as usize & 0b11) * BANK_SIZE + addr as usize) & (self.chr_rom.len() - 1)],
             INES185Sub0
             | INES185Sub4
             | INES185Sub5
